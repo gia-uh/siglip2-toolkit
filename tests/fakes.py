@@ -15,7 +15,7 @@ class FakeEmbedder:
 
     Produces unit-norm vectors seeded by the bytes of each image, so runs are
     reproducible and no model is required. Mirrors the public surface used by
-    the indexer: ``embed_images(..., on_error=, return_indices=)`` and
+    the exporter: ``embed_images(..., on_error=, return_indices=)`` and
     ``embedding_space()``.
     """
 

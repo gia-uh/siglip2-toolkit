@@ -1,36 +1,46 @@
-"""Index file format (v2): specification and read/write helpers.
+"""Embeddings export format (v2): specification and read/write helpers.
 
-An index file is a sequence of objects, optionally preceded by a header::
+An export file is a sequence of objects, optionally preceded by a header::
 
-    {"format": "siglip2-index", "version": 2,
+    {"format": "siglip2-export", "version": 2,
      "embedding_space": {"model": "...", "dimensions": 768, "normalization": "l2"},
      "created_at": "2026-10-17T12:00:00+00:00"}
-    {"vector": [...], "metadata": {"path": "/abs/path.jpg", ...}}
-    {"vector": [...], "metadata": {"path": "/abs/path2.jpg", ...}}
+    {"id": "/photos/a.jpg", "vector": [...], "metadata": {...}}
+    {"id": "/photos/b.jpg", "vector": [...]}
     ...
 
 ``jsonl`` files store one object per line; ``pkl`` files store a sequence of
-pickled objects. Record-only files produced before format v2 (a.k.a. v1) are
-still readable: they are treated as records with an unknown embedding space.
+pickled objects. Record-only files (written before format v2) are still
+readable.
 
-The record id is ``metadata["path"]`` (the absolute path of the image).
+A record carries its identity in ``id`` (any stable string; the exporter
+uses the absolute image path). ``metadata`` is optional and free-form: store
+EXIF, timestamps, tags — or nothing at all. Records without an ``id`` fall
+back to ``metadata["path"]`` when read back.
+
+This is an interchange format, not a database: consumers load the vectors
+with whatever tool they prefer (a vector store, numpy, another pipeline).
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import pickle
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, Optional, Sequence
 
-FORMAT_NAME = "siglip2-index"
+logger = logging.getLogger(__name__)
+
+FORMAT_NAME = "siglip2-export"
 FORMAT_VERSION = 2
 
 JSONL_SUFFIXES = (".jsonl", ".jsonlines", ".ndjson")
 PKL_SUFFIXES = (".pkl", ".pickle")
+_TEMP_SUFFIXES = (".tmp", ".part")
 
 
 def now_iso() -> str:
@@ -43,7 +53,7 @@ class EmbeddingSpace:
     """Identity of the vector space produced by an embedder.
 
     Two vectors are only comparable when they were produced by the same model
-    (and the same preprocessing). This manifest is stored in the index header
+    (and the same preprocessing). This manifest is stored in the export header
     so consumers can detect mismatches.
     """
 
@@ -96,7 +106,7 @@ def make_header(
     embedding_space: Optional[EmbeddingSpace] = None,
     created_at: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Build the index header object."""
+    """Build the export header object."""
     header: dict[str, Any] = {
         "format": FORMAT_NAME,
         "version": FORMAT_VERSION,
@@ -108,17 +118,38 @@ def make_header(
 
 
 def is_header(obj: Any) -> bool:
-    """Whether an object read from an index file is a format header."""
+    """Whether an object read from an export file is a format header."""
     return isinstance(obj, dict) and obj.get("format") == FORMAT_NAME
 
 
-def make_record(vector: Sequence[float], metadata: dict[str, Any]) -> dict[str, Any]:
-    """Build an index record from a vector and its metadata."""
-    return {"vector": list(vector), "metadata": dict(metadata)}
+def make_record(
+    vector: Sequence[float],
+    metadata: Optional[dict[str, Any]] = None,
+    *,
+    id: Optional[str] = None,
+) -> dict[str, Any]:
+    """Build an export record.
+
+    ``id`` identifies the vector (enable it for incremental updates and
+    deduplication); ``metadata`` is optional and may hold any
+    JSON-serializable data.
+    """
+    record: dict[str, Any] = {}
+    if id is not None:
+        record["id"] = str(id)
+    record["vector"] = list(vector)
+    if metadata is not None:
+        record["metadata"] = dict(metadata)
+    return record
 
 
-def record_path(record: dict[str, Any]) -> Optional[str]:
-    """The record id: the absolute path stored in ``metadata["path"]``."""
+def record_id(record: dict[str, Any]) -> Optional[str]:
+    """The record id: top-level ``id``, or legacy ``metadata["path"]``."""
+    if not isinstance(record, dict):
+        return None
+    identifier = record.get("id")
+    if isinstance(identifier, str) and identifier:
+        return identifier
     metadata = record.get("metadata")
     if isinstance(metadata, dict):
         path = metadata.get("path")
@@ -127,14 +158,11 @@ def record_path(record: dict[str, Any]) -> Optional[str]:
     return None
 
 
-_TEMP_SUFFIXES = (".tmp", ".part")
-
-
 def infer_format(path: str | Path) -> str:
-    """Infer the index format (``jsonl`` or ``pkl``) from a file name.
+    """Infer the export format (``jsonl`` or ``pkl``) from a file name.
 
     Temporary suffixes (``.tmp``/``.part``) are stripped first, so the
-    interrupted-run convention ``<index>.jsonl.tmp`` also resolves.
+    interrupted-run convention ``<export>.jsonl.tmp`` also resolves.
     """
     name = Path(path).name.lower()
     for temp_suffix in _TEMP_SUFFIXES:
@@ -147,13 +175,13 @@ def infer_format(path: str | Path) -> str:
     if suffix in PKL_SUFFIXES:
         return "pkl"
     raise ValueError(
-        f"Cannot infer index format from '{path}'. "
+        f"Cannot infer export format from '{path}'. "
         f"Use one of {JSONL_SUFFIXES + PKL_SUFFIXES}."
     )
 
 
 def read_header(path: str | Path) -> Optional[dict[str, Any]]:
-    """Read the index header, or ``None`` for legacy (v1) or missing files."""
+    """Read the export header, or ``None`` for legacy or missing files."""
     path = Path(path)
     if not path.exists():
         return None
@@ -175,7 +203,7 @@ def read_header(path: str | Path) -> Optional[dict[str, Any]]:
 
 
 def iter_records(path: str | Path) -> Iterator[dict[str, Any]]:
-    """Yield index records, skipping the header if present."""
+    """Yield export records, skipping the header if present."""
     path = Path(path)
     fmt = infer_format(path)
     if fmt == "jsonl":
@@ -199,31 +227,37 @@ def iter_records(path: str | Path) -> Iterator[dict[str, Any]]:
 
 
 def load_records(path: str | Path) -> list[dict[str, Any]]:
-    """Load all records of an index file into memory."""
+    """Load all records of an export file into memory."""
     return list(iter_records(path))
 
 
-def load_index_map(path: str | Path) -> dict[str, dict[str, Any]]:
-    """Load an index file into a dictionary keyed by record id (image path).
+def load_by_id(path: str | Path) -> dict[str, dict[str, Any]]:
+    """Load an export file into a dictionary keyed by record id.
 
-    Later duplicates win, matching the historical behaviour of the importer
-    and indexer tooling.
+    Records without an id (neither ``id`` nor a legacy ``metadata.path``) are
+    skipped with a warning. Later duplicates win, matching the behaviour of
+    incremental runs.
     """
     index: dict[str, dict[str, Any]] = {}
+    skipped = 0
     for record in iter_records(path):
-        key = record_path(record)
+        key = record_id(record)
         if key:
             index[key] = record
+        else:
+            skipped += 1
+    if skipped:
+        logger.warning("Skipped %d record(s) without id in %s", skipped, path)
     return index
 
 
-def write_index(
+def write_export(
     path: str | Path,
     records: Sequence[dict[str, Any]],
     embedding_space: Optional[EmbeddingSpace] = None,
     fmt: Optional[str] = None,
 ) -> None:
-    """Write records (with an optional header) to a new index file.
+    """Write records (with a header) to a new export file.
 
     The file is created (or fully rewritten); parent directories are created
     as needed. A format header is always written; pass
@@ -233,7 +267,7 @@ def write_index(
     path = Path(path)
     fmt = fmt or infer_format(path)
     if fmt not in ("jsonl", "pkl"):
-        raise ValueError(f"Unsupported index format: {fmt!r}")
+        raise ValueError(f"Unsupported export format: {fmt!r}")
     if path.parent and not path.parent.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
 

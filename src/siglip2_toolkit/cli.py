@@ -1,7 +1,7 @@
-"""Command-line interface: ``siglip2 embed|index|inspect|serve``.
+"""Command-line interface: ``siglip2 embed|export|inspect|classify|serve``.
 
 The CLI is a thin adapter over the public library API: it contains no
-embedding or indexing logic of its own.
+embedding or export logic of its own.
 """
 
 from __future__ import annotations
@@ -16,22 +16,23 @@ from typing import Any, Optional
 from . import __version__
 from .defaults import DEFAULT_MODEL
 
-DEFAULT_INDEX_CONFIG: dict[str, Any] = {
+DEFAULT_EXPORT_CONFIG: dict[str, Any] = {
     "input_dirs": [],
-    "output_file": "image_index.jsonl",
+    "output_file": "embeddings.jsonl",
     "output_format": None,
     "model_name": DEFAULT_MODEL,
     "batch_size": 32,
     "device": "auto",
     "log_level": "INFO",
-    "reindex": False,
-    "source_index": None,
+    "incremental": False,
+    "source_file": None,
+    "store_metadata": True,
     "create_thumbnails": False,
     "thumbnail_dir": "thumbnails",
     "thumbnail_size": [128, 128],
 }
 
-_INDEX_KEYS = tuple(DEFAULT_INDEX_CONFIG)
+_EXPORT_KEYS = tuple(DEFAULT_EXPORT_CONFIG)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -57,25 +58,26 @@ def build_parser() -> argparse.ArgumentParser:
     embed.add_argument("--device", default="auto", help="Device: auto, cpu, cuda, mps...")
     embed.add_argument("--batch-size", type=int, default=32)
 
-    # ------------------------------------------------------------------ index
-    index = sub.add_parser(
-        "index",
-        help="Create or update an image index.",
+    # ----------------------------------------------------------------- export
+    export = sub.add_parser(
+        "export",
+        help="Create or update an embeddings export from image directories.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    index.add_argument("-c", "--config", dest="config_file", help="YAML configuration file; CLI flags override it.")
-    index.add_argument("-i", "--input-dirs", action="append", help="Directory to scan; repeat for several.")
-    index.add_argument("-o", "--output-file", help="Output index file (.jsonl or .pkl).")
-    index.add_argument("--format", dest="output_format", choices=["jsonl", "pkl"], help="Output format (inferred from the output file when omitted).")
-    index.add_argument("--model-name", help="Hugging Face model name for embeddings.")
-    index.add_argument("--batch-size", type=int, help="Images per batch.")
-    index.add_argument("--device", choices=["auto", "cpu", "cuda", "mps"], help="Device to use.")
-    index.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging level.")
-    index.add_argument("--reindex", action="store_true", help="Only process new or modified files, and drop deleted ones.")
-    index.add_argument("--source-index", help="Existing index used as the re-index base (defaults to the output file).")
-    index.add_argument("--create-thumbnails", action="store_true", help="Also generate WEBP thumbnails.")
-    index.add_argument("--thumbnail-dir", help="Directory for generated thumbnails.")
-    index.add_argument("--thumbnail-size", type=int, nargs=2, metavar=("W", "H"), help="Thumbnail size in pixels.")
+    export.add_argument("-c", "--config", dest="config_file", help="YAML configuration file; CLI flags override it.")
+    export.add_argument("-i", "--input-dirs", action="append", help="Directory to scan; repeat for several.")
+    export.add_argument("-o", "--output-file", help="Output export file (.jsonl or .pkl).")
+    export.add_argument("--format", dest="output_format", choices=["jsonl", "pkl"], help="Output format (inferred from the output file when omitted).")
+    export.add_argument("--model-name", help="Hugging Face model name for embeddings.")
+    export.add_argument("--batch-size", type=int, help="Images per batch.")
+    export.add_argument("--device", choices=["auto", "cpu", "cuda", "mps"], help="Device to use.")
+    export.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging level.")
+    export.add_argument("--incremental", action="store_true", help="Only process new or modified files, and drop deleted ones.")
+    export.add_argument("--source-file", help="Existing export used as the base for an incremental run (defaults to the output file).")
+    export.add_argument("--no-metadata", action="store_true", help="Store only ids and vectors (no metadata); incremental modification detection is disabled.")
+    export.add_argument("--create-thumbnails", action="store_true", help="Also generate WEBP thumbnails.")
+    export.add_argument("--thumbnail-dir", help="Directory for generated thumbnails.")
+    export.add_argument("--thumbnail-size", type=int, nargs=2, metavar=("W", "H"), help="Thumbnail size in pixels.")
 
     # ---------------------------------------------------------------- inspect
     inspect = sub.add_parser("inspect", help="Validate an index file and print a summary.")
@@ -142,8 +144,8 @@ def _cmd_embed(args: argparse.Namespace) -> int:
     return 0
 
 
-def _merge_index_config(args: argparse.Namespace) -> dict[str, Any]:
-    config = dict(DEFAULT_INDEX_CONFIG)
+def _merge_export_config(args: argparse.Namespace) -> dict[str, Any]:
+    config = dict(DEFAULT_EXPORT_CONFIG)
     if args.config_file:
         import yaml
 
@@ -151,36 +153,40 @@ def _merge_index_config(args: argparse.Namespace) -> dict[str, Any]:
             yaml_config = yaml.safe_load(handle) or {}
         config.update(yaml_config)
 
-    for key in _INDEX_KEYS:
+    for key in _EXPORT_KEYS:
         value = getattr(args, key, None)
         if value is None:
             continue
-        if key in ("reindex", "create_thumbnails") and not value:
+        if key in ("incremental", "create_thumbnails") and not value:
             continue  # store_true flags: only override when enabled
         config[key] = value
+
+    if getattr(args, "no_metadata", False):
+        config["store_metadata"] = False
     return config
 
 
-def _cmd_index(args: argparse.Namespace) -> int:
-    from .indexer import Indexer, IndexerConfig
+def _cmd_export(args: argparse.Namespace) -> int:
+    from .exporter import ExportConfig, Exporter
     from .utils import setup_logging
 
-    config = _merge_index_config(args)
+    config = _merge_export_config(args)
     setup_logging(config.get("log_level", "INFO"))
 
     if not config.get("input_dirs"):
         print("error: no input directories specified (-i/--input-dirs or config file)", file=sys.stderr)
         return 2
 
-    indexer_config = IndexerConfig(
+    export_config = ExportConfig(
         input_dirs=list(config["input_dirs"]),
         output_file=str(config["output_file"]),
         output_format=config.get("output_format"),
         model=config.get("model_name", DEFAULT_MODEL),
         device=config.get("device", "auto"),
         batch_size=int(config.get("batch_size", 32)),
-        reindex=bool(config.get("reindex")),
-        source_index=config.get("source_index"),
+        incremental=bool(config.get("incremental")),
+        source_file=config.get("source_file"),
+        store_metadata=bool(config.get("store_metadata", True)),
         create_thumbnails=bool(config.get("create_thumbnails")),
         thumbnail_dir=str(config.get("thumbnail_dir", "thumbnails")),
         thumbnail_size=tuple(config.get("thumbnail_size") or (128, 128)),
@@ -192,12 +198,12 @@ def _cmd_index(args: argparse.Namespace) -> int:
         if bar["pbar"] is None:
             from tqdm import tqdm
 
-            bar["pbar"] = tqdm(total=total, desc="Indexing", unit="image")
+            bar["pbar"] = tqdm(total=total, desc="Exporting", unit="image")
         pbar = bar["pbar"]
         pbar.update(done - pbar.n)
 
     try:
-        result = Indexer(indexer_config, on_progress=on_progress).run()
+        result = Exporter(export_config, on_progress=on_progress).run()
     finally:
         if bar["pbar"] is not None:
             bar["pbar"].close()
@@ -209,7 +215,7 @@ def _cmd_index(args: argparse.Namespace) -> int:
     if result.embedding_space is not None:
         space = result.embedding_space
         print(f"Embedding space: {space.model} (d={space.dimensions}, {space.normalization})")
-    print(f"Index written to: {result.output_file}")
+    print(f"Export written to: {result.output_file}")
     return 0
 
 
@@ -242,11 +248,13 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
         vector = records[0].get("vector") or []
         print(f"Vector dimension: {len(vector)}")
         metadata = records[0].get("metadata")
-        if isinstance(metadata, dict):
+        if isinstance(metadata, dict) and metadata:
             print(f"Metadata keys: {', '.join(sorted(metadata))}")
-        missing = sum(1 for record in records if formats.record_path(record) is None)
+        else:
+            print("Metadata: none")
+        missing = sum(1 for record in records if formats.record_id(record) is None)
         if missing:
-            print(f"Records without id (metadata.path): {missing}")
+            print(f"Records without id: {missing}")
     return 0
 
 
@@ -301,8 +309,8 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if args.command == "embed":
         return _cmd_embed(args)
-    if args.command == "index":
-        return _cmd_index(args)
+    if args.command == "export":
+        return _cmd_export(args)
     if args.command == "inspect":
         return _cmd_inspect(args)
     if args.command == "classify":

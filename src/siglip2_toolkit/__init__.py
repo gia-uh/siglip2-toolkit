@@ -4,7 +4,7 @@ The package is deliberately lazy: importing :mod:`siglip2_toolkit` does not
 import torch, transformers or FastAPI. Heavy modules are loaded on first
 attribute access, so tooling and metadata inspection stay fast::
 
-    from siglip2_toolkit import Embedder, Indexer
+    from siglip2_toolkit import Embedder
 
     embedder = Embedder(model="google/siglip2-base-patch16-naflex", device="auto")
     vectors = embedder.embed_texts(["a wedding at sunset"])
@@ -23,17 +23,20 @@ except Exception:  # pragma: no cover - source checkout without installed metada
 _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     # Public API
     "Embedder": (".embedder", "Embedder"),
-    "Indexer": (".indexer", "Indexer"),
-    "IndexerConfig": (".indexer", "IndexerConfig"),
-    "IndexResult": (".indexer", "IndexResult"),
+    "Exporter": (".exporter", "Exporter"),
+    "ExportConfig": (".exporter", "ExportConfig"),
+    "ExportResult": (".exporter", "ExportResult"),
     "EmbeddingSpace": (".formats", "EmbeddingSpace"),
     "ImageClassifier": (".classification", "ImageClassifier"),
+    "Filter": (".filters", "Filter"),
+    "field": (".filters", "field"),
     # Submodules
     "formats": (".formats", None),
     "retrieval": (".retrieval", None),
+    "filters": (".filters", None),
     "utils": (".utils", None),
     "embedder": (".embedder", None),
-    "indexer": (".indexer", None),
+    "exporter": (".exporter", None),
     "classification": (".classification", None),
     "cli": (".cli", None),
     "server": (".server", None),
@@ -41,11 +44,13 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
 
 __all__ = [
     "Embedder",
-    "Indexer",
-    "IndexerConfig",
-    "IndexResult",
+    "Exporter",
+    "ExportConfig",
+    "ExportResult",
     "EmbeddingSpace",
     "ImageClassifier",
+    "Filter",
+    "field",
     "__version__",
 ]
 

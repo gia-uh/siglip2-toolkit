@@ -107,18 +107,43 @@ def test_zero_shot_logits_shape(embedder, images_dir):
     assert logits.dtype == np.float32
 
 
-def test_indexer_with_real_model_smoke(tmp_path, image_paths, embedder):
-    """End-to-end: index the test images with the real model, then search."""
-    from siglip2_toolkit.indexer import Indexer, IndexerConfig
+def test_exporter_with_real_model_smoke(tmp_path, image_paths, embedder):
+    """End-to-end: export the test images with the real model."""
+    from siglip2_toolkit.exporter import ExportConfig, Exporter
 
-    output = tmp_path / "semantic_index.jsonl"
-    config = IndexerConfig(
+    output = tmp_path / "semantic_export.jsonl"
+    config = ExportConfig(
         input_dirs=[str(image_paths[0].parent)],
         output_file=str(output),
         model=embedder.model_name,
         device="cpu",
         batch_size=4,
     )
-    result = Indexer(config, embedder=embedder).run()
+    result = Exporter(config, embedder=embedder).run()
     assert result.processed >= 6
     assert output.exists()
+
+
+def test_filter_and_rank_composition(embedder, image_paths):
+    """The documented pattern: filter metadata, then rank.
+
+    The toolkit ships the pieces (embeddings, filters, ranking math); wiring
+    them into a search experience is the consumer's choice.
+    """
+    from siglip2_toolkit import formats, utils
+    from siglip2_toolkit.filters import field, matches
+
+    records = []
+    for path in image_paths:
+        vector = embedder.embed_image(str(path))
+        metadata = utils.extract_metadata(str(path))
+        records.append(formats.make_record(vector.tolist(), metadata, id=path.name))
+
+    candidates = [r for r in records if matches(r["metadata"], field("height").between(100, 265))]
+    names = {r["metadata"]["filename"] for r in candidates}
+    assert {"cat.jpg", "horse.jpg", "rocket.jpg"} <= names
+    assert "grace_hopper.jpg" not in names  # height 320
+
+    matrix = np.asarray([r["vector"] for r in candidates], dtype=np.float32)
+    ranked = retrieval.rank_by_similarity(embedder.embed_text("a horse"), matrix, top_k=1)
+    assert candidates[ranked[0][0]]["metadata"]["filename"] == "horse.jpg"

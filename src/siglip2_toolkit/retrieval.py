@@ -1,8 +1,8 @@
 """Storage-agnostic retrieval primitives.
 
 These helpers operate on numpy arrays and on ``(payload, score)`` result
-lists, so they can be reused with any vector store (e.g. beaver-db) or
-directly over index files produced by :mod:`.indexer`.
+lists, so they can be reused with any vector store or directly over vectors
+loaded from an embeddings export (see :mod:`.formats`).
 """
 
 from __future__ import annotations

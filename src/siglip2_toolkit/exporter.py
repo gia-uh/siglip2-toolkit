@@ -1,9 +1,13 @@
-"""Incremental image indexer.
+"""Incremental corpus export.
 
-Scans directories, embeds images with a SigLIP 2 :class:`~.embedder.Embedder`
-and writes a versioned index file (see :mod:`.formats`). Supports incremental
-re-indexing (new/modified/deleted files) and automatic resume from an
-interrupted run via a ``.tmp`` file.
+Scans image directories, embeds images with a SigLIP 2
+:class:`~.embedder.Embedder` and writes a portable embeddings export (see
+:mod:`.formats`). Supports incremental runs (new/modified/deleted files) and
+automatic resume from an interrupted run via a ``.tmp`` file.
+
+The export is an interchange artifact: it is not a database, and this toolkit
+does not serve searches over it. Where the vectors live afterwards — a vector
+store, numpy, another pipeline — is the consumer's choice.
 """
 
 from __future__ import annotations
@@ -24,25 +28,26 @@ StageCallback = Callable[[str], None]
 
 
 @dataclass
-class IndexerConfig:
-    """Configuration for a single indexing run."""
+class ExportConfig:
+    """Configuration for a single export run."""
 
     input_dirs: Sequence[str] = ()
-    output_file: str = "image_index.jsonl"
+    output_file: str = "embeddings.jsonl"
     output_format: Optional[str] = None  # None -> inferred from output_file
     model: str = DEFAULT_MODEL
     device: str = "auto"
     batch_size: int = 32
-    reindex: bool = False
-    source_index: Optional[str] = None
+    incremental: bool = False
+    source_file: Optional[str] = None
+    store_metadata: bool = True
     create_thumbnails: bool = False
     thumbnail_dir: str = "thumbnails"
     thumbnail_size: tuple[int, int] = (128, 128)
 
 
 @dataclass
-class IndexResult:
-    """Summary of an indexing run."""
+class ExportResult:
+    """Summary of an export run."""
 
     processed: int = 0
     skipped: int = 0
@@ -52,17 +57,22 @@ class IndexResult:
     embedding_space: Optional[EmbeddingSpace] = None
 
 
-class Indexer:
-    """Runs the indexing workflow for one configuration.
+class Exporter:
+    """Runs the export workflow for one configuration.
 
     Progress can be followed with two callbacks: ``on_progress(done, total,
     path)`` after each processed batch and ``on_stage(stage)`` for coarse
-    phase changes (``"scanning"``, ``"indexing"``, ``"done"``).
+    phase changes (``"scanning"``, ``"embedding"``, ``"done"``).
+
+    With ``incremental`` enabled, only new or modified files are embedded and
+    deleted files are dropped from the export. Modification detection relies
+    on file metadata, so ``store_metadata=False`` limits incremental runs to
+    new/deleted files.
     """
 
     def __init__(
         self,
-        config: IndexerConfig,
+        config: ExportConfig,
         embedder: Optional[Embedder] = None,
         on_progress: Optional[ProgressCallback] = None,
         on_stage: Optional[StageCallback] = None,
@@ -81,7 +91,7 @@ class Indexer:
 
     # ------------------------------------------------------------------ #
 
-    def run(self) -> IndexResult:
+    def run(self) -> ExportResult:
         """Execute the run and return its summary."""
         cfg = self.config
         if not cfg.input_dirs:
@@ -104,44 +114,44 @@ class Indexer:
 
         existing: dict[str, dict] = {}
         source: Optional[str] = None
-        if cfg.reindex:
-            source = cfg.source_index or output
+        if cfg.incremental:
+            source = cfg.source_file or output
             if os.path.exists(source):
-                existing = formats.load_index_map(source)
-                logger.info("Loaded %d record(s) from %s for re-indexing.", len(existing), source)
+                existing = formats.load_by_id(source)
+                logger.info("Loaded %d record(s) from %s for an incremental run.", len(existing), source)
         elif os.path.exists(temp):
             source = temp
-            existing = formats.load_index_map(temp)
+            existing = formats.load_by_id(temp)
             logger.info("Resuming interrupted run from %s (%d record(s)).", temp, len(existing))
 
-        to_process = utils.filter_files_for_reindex(disk_set, existing)
+        to_process = utils.filter_files_for_update(disk_set, existing)
 
-        if not to_process and not cfg.reindex:
+        if not to_process and not cfg.incremental:
             if source == temp and existing:
                 # Resumed run with nothing left to embed: finalise it.
                 space = self._header_space(temp) or self._header_space(output)
-                formats.write_index(output, list(existing.values()), embedding_space=space, fmt=fmt)
+                formats.write_export(output, list(existing.values()), embedding_space=space, fmt=fmt)
                 os.remove(temp)
                 logger.info("Interrupted run finalised: %s", output)
             elif not existing and not os.path.exists(output):
-                # Nothing to do at all: still leave a valid, empty index.
-                formats.write_index(output, [], embedding_space=None, fmt=fmt)
-                logger.info("No images found; empty index written: %s", output)
+                # Nothing to do at all: still leave a valid, empty export.
+                formats.write_export(output, [], embedding_space=None, fmt=fmt)
+                logger.info("No images found; empty export written: %s", output)
             else:
                 logger.info("No new or modified images to process.")
             self._stage("done")
-            return IndexResult(
+            return ExportResult(
                 total=len(existing), output_file=output, embedding_space=self._header_space(output)
             )
 
         records = list(existing.values())
         position: dict[str, int] = {}
         for index, record in enumerate(records):
-            path = formats.record_path(record)
-            if path:
-                position[path] = index
+            identifier = formats.record_id(record)
+            if identifier:
+                position[identifier] = index
 
-        self._stage("indexing")
+        self._stage("embedding")
         space: Optional[EmbeddingSpace] = None
         processed = 0
         skipped = 0
@@ -157,16 +167,20 @@ class Indexer:
 
             for row, item_index in enumerate(kept):
                 path = batch[item_index]
-                metadata = utils.extract_metadata(
-                    path,
-                    create_thumbnails=cfg.create_thumbnails,
-                    thumbnail_dir=cfg.thumbnail_dir,
-                    thumbnail_size=cfg.thumbnail_size,
-                )
-                if metadata is None:
-                    skipped += 1
-                    continue
-                record = formats.make_record(vectors[row].tolist(), metadata)
+                if cfg.store_metadata:
+                    metadata = utils.extract_metadata(
+                        path,
+                        create_thumbnails=cfg.create_thumbnails,
+                        thumbnail_dir=cfg.thumbnail_dir,
+                        thumbnail_size=cfg.thumbnail_size,
+                    )
+                    if metadata is None:
+                        skipped += 1
+                        continue
+                    record = formats.make_record(vectors[row].tolist(), metadata, id=path)
+                else:
+                    record = formats.make_record(vectors[row].tolist(), id=path)
+
                 if path in position:
                     records[position[path]] = record
                 else:
@@ -175,16 +189,16 @@ class Indexer:
                 processed += 1
 
             skipped += len(batch) - len(kept)
-            formats.write_index(temp, records, embedding_space=space, fmt=fmt)
+            formats.write_export(temp, records, embedding_space=space, fmt=fmt)
             done += len(batch)
             self._progress(done, total, batch[-1])
 
         removed = 0
-        if cfg.reindex:
+        if cfg.incremental:
             kept_records = [
                 record
                 for record in records
-                if (path := formats.record_path(record)) is not None and path in disk_set
+                if (identifier := formats.record_id(record)) is not None and identifier in disk_set
             ]
             removed = len(records) - len(kept_records)
             records = kept_records
@@ -192,12 +206,12 @@ class Indexer:
         if space is None:
             space = self._header_space(temp) or self._header_space(source)
 
-        formats.write_index(output, records, embedding_space=space, fmt=fmt)
+        formats.write_export(output, records, embedding_space=space, fmt=fmt)
         if os.path.exists(temp):
             os.remove(temp)
 
         logger.info(
-            "Indexing complete: %d processed, %d skipped, %d removed; %d record(s) in %s.",
+            "Export complete: %d processed, %d skipped, %d removed; %d record(s) in %s.",
             processed,
             skipped,
             removed,
@@ -205,7 +219,7 @@ class Indexer:
             output,
         )
         self._stage("done")
-        return IndexResult(
+        return ExportResult(
             processed=processed,
             skipped=skipped,
             removed=removed,

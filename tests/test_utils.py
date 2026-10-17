@@ -1,9 +1,11 @@
 """Unit tests for filesystem and metadata helpers."""
 
+import os
+import time
 from datetime import datetime
 from pathlib import Path
 
-from siglip2_toolkit import utils
+from siglip2_toolkit import formats, utils
 
 
 def test_find_image_files_filters_extensions_and_recurses(tmp_path):
@@ -22,7 +24,7 @@ def test_find_image_files_skips_missing_directories(tmp_path):
     assert found == []
 
 
-def test_filter_files_for_reindex_detects_new_and_modified(tmp_path):
+def test_filter_files_for_update_detects_new_and_modified(tmp_path):
     first = tmp_path / "a.jpg"
     first.write_bytes(b"x")
     second = tmp_path / "b.jpg"
@@ -31,8 +33,18 @@ def test_filter_files_for_reindex_detects_new_and_modified(tmp_path):
     stamp = datetime.fromtimestamp(first.stat().st_mtime).isoformat()
     existing = {str(first): {"metadata": {"modification_time": stamp}}}
 
-    to_process = utils.filter_files_for_reindex({str(first), str(second)}, existing)
+    to_process = utils.filter_files_for_update({str(first), str(second)}, existing)
     assert to_process == {str(second)}
+
+
+def test_filter_files_for_update_skips_records_without_metadata(tmp_path):
+    image = tmp_path / "a.jpg"
+    image.write_bytes(b"x")
+    future = time.time() + 10
+    os.utime(image, (future, future))
+
+    existing = {str(image): formats.make_record([1.0], id=str(image))}
+    assert utils.filter_files_for_update({str(image)}, existing) == set()
 
 
 def test_extract_metadata_shape(tmp_path, image_paths):

@@ -205,33 +205,40 @@ def extract_metadata(
         return None
 
 
-def filter_files_for_reindex(
+def filter_files_for_update(
     all_files_on_disk: set[str],
-    existing_index: dict[str, dict[str, Any]],
+    existing: dict[str, dict[str, Any]],
 ) -> set[str]:
-    """Plan a re-index run.
+    """Plan an incremental run.
 
-    Files to (re)process are the files on disk that are either new (not in the
-    index) or whose modification time differs from the indexed one by more
-    than one second. Missing or unparseable timestamps cause reprocessing.
+    Files to process are the files on disk that are either new (not in the
+    export) or whose modification time differs from the recorded one by more
+    than one second. Records without metadata (metadata was not exported)
+    cannot be compared, so only new files are detected for them. Missing or
+    unparseable timestamps cause reprocessing.
     """
     files_to_process: set[str] = set()
-    indexed_files = set(existing_index)
+    existing_ids = set(existing)
 
-    files_to_process.update(all_files_on_disk - indexed_files)
+    files_to_process.update(all_files_on_disk - existing_ids)
 
-    for path in indexed_files & all_files_on_disk:
+    for path in existing_ids & all_files_on_disk:
+        metadata = existing[path].get("metadata")
+        if not isinstance(metadata, dict) or not metadata:
+            continue  # nothing to compare: metadata was not exported
         try:
             disk_mtime = os.path.getmtime(path)
-            indexed_mtime_iso = existing_index[path]["metadata"].get("modification_time")
-            if not indexed_mtime_iso:
+            recorded_mtime = metadata.get("modification_time")
+            if not recorded_mtime:
                 files_to_process.add(path)
                 continue
-            indexed_mtime = datetime.fromisoformat(indexed_mtime_iso).timestamp()
-            if abs(float(disk_mtime) - indexed_mtime) > 1:
+            recorded = datetime.fromisoformat(recorded_mtime).timestamp()
+            if abs(float(disk_mtime) - recorded) > 1:
                 files_to_process.add(path)
         except Exception as exc:  # noqa: BLE001 - be conservative and reprocess
-            logger.warning("Could not compare modification time for %s (%s); re-indexing", path, exc)
+            logger.warning(
+                "Could not compare modification time for %s (%s); re-processing", path, exc
+            )
             files_to_process.add(path)
 
     logger.info("Found %d new or modified file(s) to process.", len(files_to_process))

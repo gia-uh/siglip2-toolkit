@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "siglip2-toolkit"
 version = "0.0.1"
-description = "Local-first toolkit around Google's SigLIP 2 models: text/image embeddings, incremental image indexing and retrieval primitives. Library-first, with CLI and REST interfaces."
+description = "Local-first toolkit around Google's SigLIP 2 models: text/image embeddings, zero-shot and fine-tuned classification, incremental corpus export and retrieval math. Library-first, with CLI and REST interfaces."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
@@ -17,8 +17,8 @@ keywords = [
     "siglip2",
     "embeddings",
     "image-search",
-    "image-indexing",
-    "vector-search",
+    "image-classification",
+    "image-retrieval",
     "local-first",
 ]
 classifiers = [

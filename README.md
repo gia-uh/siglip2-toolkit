@@ -1,6 +1,8 @@
 # siglip2-toolkit
 
-Local-first toolkit around Google's **SigLIP 2** vision-language models for image retrieval: text and image embeddings, incremental image indexing, and retrieval primitives.
+Local-first toolkit around Google's **SigLIP 2** models: text/image embeddings, zero-shot and fine-tuned classification, incremental corpus export, and retrieval math.
+
+It is **not a vector database**: it produces embeddings and portable exports, and stays agnostic about where you store or search your vectors.
 
 Co-developed by [GIA-UH](https://github.com/gia-uh) and [Syalia S.R.L.](https://github.com/syalia-srl).
 
@@ -21,12 +23,16 @@ from siglip2_toolkit import Embedder
 embedder = Embedder(model="google/siglip2-base-patch16-naflex", device="auto")
 vectors = embedder.embed_texts(["a wedding at sunset"])
 results = embedder.classify(["photo.jpg"], labels=["beach", "mountain", "wedding"])
+
+from siglip2_toolkit.filters import field, matches
+
+matches({"width": 2400}, field("width") >= 2000)  # -> True
 ```
 
 **2. As a CLI**
 
 ```bash
-siglip2 index -i /path/to/photos -o images.jsonl --reindex
+siglip2 export -i /path/to/photos -o embeddings.jsonl --incremental
 siglip2 classify --image photo.jpg --labels "beach,mountain,wedding"
 ```
 
@@ -43,14 +49,14 @@ Endpoints: `/v1/embed/text`, `/v1/embed/image`, `/v1/classify`, `/v1/health`, `/
 
 - **Library-first design**: the CLI and the REST server are thin adapters over the same public API.
 - **Zero-shot classification**: prompt-based labels using the model's calibrated SigLIP logits, plus fine-tuned classification heads (`ImageClassifier`).
-- **Incremental re-indexing**: new, modified and deleted files are detected.
-- **Resumable indexing**: interrupted runs continue where they left off.
-- **Rich metadata**: EXIF, dimensions, file times, optional thumbnails.
-- **Versioned index format** (`jsonl` / `pkl`) with an embedding-space manifest.
-- **Retrieval primitives**: top-k scoring, RRF fusion, similarity-drop filtering.
+- **Incremental export**: new, modified and deleted files are detected (modification detection requires metadata).
+- **Resumable runs**: interrupted exports continue where they left off.
+- **Optional metadata**: rich file metadata (EXIF, dimensions, timestamps, thumbnails) — or ids and vectors only, your choice.
+- **Versioned export format** (`jsonl` / `pkl`) with an embedding-space manifest.
+- **Retrieval math**: top-k scoring, RRF fusion, similarity-drop filtering and serializable metadata filters, composable with any store.
 - **100% local and offline**: no telemetry, no external services.
 
-> **Status:** early scaffold (October 2026). The public API and the index format are being stabilised before the first release.
+> **Status:** early scaffold (October 2026). The public API and the export format are being stabilised before the first release.
 
 ## License
 
