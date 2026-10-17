@@ -4,6 +4,13 @@ Local-first toolkit around Google's **SigLIP 2** vision-language models for imag
 
 Co-developed by [GIA-UH](https://github.com/gia-uh) and [Syalia S.R.L.](https://github.com/syalia-srl).
 
+## Installation
+
+```bash
+pip install siglip2-toolkit             # library + CLI
+pip install "siglip2-toolkit[server]"   # + REST server (FastAPI)
+```
+
 ## Three ways to use it
 
 **1. As a library (primary interface)**
