@@ -123,6 +123,10 @@ class Indexer:
                 formats.write_index(output, list(existing.values()), embedding_space=space, fmt=fmt)
                 os.remove(temp)
                 logger.info("Interrupted run finalised: %s", output)
+            elif not existing and not os.path.exists(output):
+                # Nothing to do at all: still leave a valid, empty index.
+                formats.write_index(output, [], embedding_space=None, fmt=fmt)
+                logger.info("No images found; empty index written: %s", output)
             else:
                 logger.info("No new or modified images to process.")
             self._stage("done")

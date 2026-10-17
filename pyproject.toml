@@ -75,3 +75,7 @@ select = ["E", "F", "I", "W", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "integration: requires torch and a cached SigLIP 2 model; enabled with SIGLIP2_INTEGRATION=1",
+]
