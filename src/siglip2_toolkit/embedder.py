@@ -24,6 +24,13 @@ logger = logging.getLogger(__name__)
 ImageInput = Union[str, Path, bytes, Any]
 
 
+def softmax_rows(scores: np.ndarray) -> np.ndarray:
+    """Row-wise softmax (internal helper, shared with classification heads)."""
+    shifted = scores - scores.max(axis=-1, keepdims=True)
+    exp = np.exp(shifted)
+    return exp / exp.sum(axis=-1, keepdims=True)
+
+
 class Embedder:
     """Generates text and image embeddings with a SigLIP 2 model.
 
@@ -80,7 +87,7 @@ class Embedder:
         import torch
         from transformers import AutoModel, AutoProcessor
 
-        device, dtype = self._resolve_device(torch)
+        device, dtype = utils.resolve_torch_device(torch, self.requested_device, self.requested_dtype)
         logger.info("Loading '%s' on %s (%s)...", self.model_name, device, dtype)
         # NOTE: torch_dtype= keeps compatibility with transformers 4.51-4.55;
         # newer versions prefer dtype= and only emit a deprecation warning.
@@ -110,23 +117,7 @@ class Embedder:
         return self
 
     def _resolve_device(self, torch: Any) -> tuple[Any, Any]:
-        choice = str(self.requested_device or "auto").lower()
-        if choice == "auto":
-            if torch.cuda.is_available():
-                choice = "cuda"
-            elif getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
-                choice = "mps"
-            else:
-                choice = "cpu"
-
-        device = torch.device(choice)
-        if self.requested_dtype:
-            dtype = getattr(torch, self.requested_dtype)
-        elif device.type in ("cuda", "mps"):
-            dtype = torch.float16
-        else:
-            dtype = torch.float32
-        return device, dtype
+        return utils.resolve_torch_device(torch, self.requested_device, self.requested_dtype)
 
     def embedding_space(self) -> EmbeddingSpace:
         """The embedding space manifest for the loaded model."""
@@ -225,6 +216,78 @@ class Embedder:
     def embed_image(self, image: ImageInput) -> np.ndarray:
         """Embed a single image. Returns a ``(dimensions,)`` float32 array."""
         return self.embed_images([image])[0]
+
+    # ------------------------------------------------------------------ #
+    # Zero-shot classification
+    # ------------------------------------------------------------------ #
+
+    def zero_shot_logits(
+        self,
+        images: Sequence[ImageInput],
+        labels: Sequence[str],
+        template: str = "{}",
+        batch_size: int = 32,
+    ) -> np.ndarray:
+        """Raw zero-shot classification logits, shaped ``(n_images, n_labels)``.
+
+        Scores follow the SigLIP recipe: cosine similarity between normalised
+        embeddings, scaled by the model's learned ``logit_scale`` and shifted
+        by ``logit_bias``. ``template`` wraps each label (``{}`` is replaced
+        by the label). When the model has no learned scale (non-SigLIP
+        checkpoints), a CLIP-style temperature of 100 is used.
+        """
+        self.load()
+        labels = [str(label) for label in labels]
+        if not labels:
+            raise ValueError("labels must not be empty")
+        if "{}" not in template:
+            logger.warning("Template %r does not contain '{}'; labels are ignored", template)
+
+        text_embeds = self.embed_texts([template.format(label) for label in labels])
+
+        logit_scale = getattr(self._model, "logit_scale", None)
+        if logit_scale is not None:
+            scale = float(logit_scale.exp().detach().cpu())
+        else:
+            scale = 100.0
+            logger.warning("Model has no logit_scale; falling back to temperature 100")
+        logit_bias = getattr(self._model, "logit_bias", None)
+        bias = float(logit_bias.detach().cpu()) if logit_bias is not None else 0.0
+
+        images = list(images)
+        rows = []
+        for start in range(0, len(images), batch_size):
+            image_embeds = self.embed_images(images[start : start + batch_size], batch_size=batch_size)
+            rows.append(image_embeds @ text_embeds.T * scale + bias)
+        if rows:
+            return np.concatenate(rows, axis=0).astype(np.float32)
+        return np.zeros((0, len(labels)), dtype=np.float32)
+
+    def classify(
+        self,
+        images: Sequence[ImageInput],
+        labels: Sequence[str],
+        template: str = "{}",
+        top_k: Optional[int] = None,
+        batch_size: int = 32,
+    ) -> list[list[tuple[str, float]]]:
+        """Zero-shot image classification.
+
+        Returns, for each image, ``(label, probability)`` pairs sorted by
+        decreasing softmax probability over the candidate labels (mutually
+        exclusive assumption). Use :meth:`zero_shot_logits` when you need the
+        raw scores for custom decision rules.
+        """
+        labels = [str(label) for label in labels]
+        logits = self.zero_shot_logits(images, labels, template=template, batch_size=batch_size)
+        results: list[list[tuple[str, float]]] = []
+        for row in logits:
+            probabilities = softmax_rows(np.asarray(row))
+            order = np.argsort(probabilities)[::-1]
+            if top_k is not None:
+                order = order[: max(0, int(top_k))]
+            results.append([(labels[int(index)], float(probabilities[index])) for index in order])
+        return results
 
     def _embed_image_batch(self, images: list[Any]) -> np.ndarray:
         torch = self._torch

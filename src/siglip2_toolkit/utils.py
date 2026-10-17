@@ -80,6 +80,31 @@ def sanitize_filename(filename: str) -> str:
     return re.sub(r'[\\/*?:"<>|]', "", filename)
 
 
+def resolve_torch_device(torch: Any, device_choice: str = "auto", dtype_choice: Optional[str] = None):
+    """Resolve ``(device, dtype)`` from a device choice string.
+
+    ``"auto"`` prefers CUDA, then MPS, then CPU. Half precision is selected
+    automatically on accelerated devices unless ``dtype_choice`` overrides it.
+    """
+    choice = str(device_choice or "auto").lower()
+    if choice == "auto":
+        if torch.cuda.is_available():
+            choice = "cuda"
+        elif getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+            choice = "mps"
+        else:
+            choice = "cpu"
+
+    device = torch.device(choice)
+    if dtype_choice:
+        dtype = getattr(torch, str(dtype_choice))
+    elif device.type in ("cuda", "mps"):
+        dtype = torch.float16
+    else:
+        dtype = torch.float32
+    return device, dtype
+
+
 def load_image(item: Any) -> Any:
     """Load an image from a path, bytes, a file-like object or a PIL image.
 

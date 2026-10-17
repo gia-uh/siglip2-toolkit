@@ -20,12 +20,14 @@ from siglip2_toolkit import Embedder
 
 embedder = Embedder(model="google/siglip2-base-patch16-naflex", device="auto")
 vectors = embedder.embed_texts(["a wedding at sunset"])
+results = embedder.classify(["photo.jpg"], labels=["beach", "mountain", "wedding"])
 ```
 
 **2. As a CLI**
 
 ```bash
 siglip2 index -i /path/to/photos -o images.jsonl --reindex
+siglip2 classify --image photo.jpg --labels "beach,mountain,wedding"
 ```
 
 **3. As a REST service (optional extra)**
@@ -35,9 +37,12 @@ pip install "siglip2-toolkit[server]"
 siglip2 serve --host 0.0.0.0 --port 8000
 ```
 
+Endpoints: `/v1/embed/text`, `/v1/embed/image`, `/v1/classify`, `/v1/health`, `/v1/info`.
+
 ## Highlights
 
 - **Library-first design**: the CLI and the REST server are thin adapters over the same public API.
+- **Zero-shot classification**: prompt-based labels using the model's calibrated SigLIP logits, plus fine-tuned classification heads (`ImageClassifier`).
 - **Incremental re-indexing**: new, modified and deleted files are detected.
 - **Resumable indexing**: interrupted runs continue where they left off.
 - **Rich metadata**: EXIF, dimensions, file times, optional thumbnails.

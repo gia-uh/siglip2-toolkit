@@ -27,12 +27,14 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "IndexerConfig": (".indexer", "IndexerConfig"),
     "IndexResult": (".indexer", "IndexResult"),
     "EmbeddingSpace": (".formats", "EmbeddingSpace"),
+    "ImageClassifier": (".classification", "ImageClassifier"),
     # Submodules
     "formats": (".formats", None),
     "retrieval": (".retrieval", None),
     "utils": (".utils", None),
     "embedder": (".embedder", None),
     "indexer": (".indexer", None),
+    "classification": (".classification", None),
     "cli": (".cli", None),
     "server": (".server", None),
 }
@@ -43,6 +45,7 @@ __all__ = [
     "IndexerConfig",
     "IndexResult",
     "EmbeddingSpace",
+    "ImageClassifier",
     "__version__",
 ]
 

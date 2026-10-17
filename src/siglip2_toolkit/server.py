@@ -6,8 +6,11 @@ REST clients. ``create_app()`` also allows mounting the API inside an
 existing FastAPI application.
 """
 
-from __future__ import annotations
+# NOTE: deliberately no ``from __future__ import annotations`` in this module:
+# FastAPI resolves route annotations at runtime, and the FastAPI symbols are
+# imported inside ``create_app`` (the [server] extra is optional).
 
+import json
 import logging
 from typing import Any, Optional
 
@@ -20,6 +23,21 @@ _SERVER_EXTRA_HINT = (
     "The REST server requires the [server] extra:\n"
     "    pip install 'siglip2-toolkit[server]'"
 )
+
+
+def _parse_labels(raw: str) -> list[str]:
+    """Accept candidate labels as a JSON array or a comma-separated list."""
+    raw = (raw or "").strip()
+    if not raw:
+        return []
+    if raw.startswith("["):
+        try:
+            values = json.loads(raw)
+        except json.JSONDecodeError:
+            values = None
+        if isinstance(values, list):
+            return [str(value).strip() for value in values if str(value).strip()]
+    return [part.strip() for part in raw.split(",") if part.strip()]
 
 
 def create_app(
@@ -35,7 +53,7 @@ def create_app(
     and ``/v1/info`` never trigger a load.
     """
     try:
-        from fastapi import FastAPI, File, HTTPException, UploadFile
+        from fastapi import FastAPI, File, Form, HTTPException, UploadFile
         from pydantic import BaseModel
         from starlette.concurrency import run_in_threadpool
     except ImportError as exc:
@@ -105,6 +123,49 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return _vector_response(matrix)
+
+    @app.post("/v1/classify")
+    async def classify_images(
+        files: list[UploadFile] = File(...),
+        labels: str = Form(...),
+        template: str = Form("{}"),
+        top_k: Optional[int] = Form(None),
+    ) -> dict[str, Any]:
+        parsed_labels = _parse_labels(labels)
+        if not parsed_labels:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide candidate labels as a JSON array or a comma-separated list",
+            )
+        if not files:
+            raise HTTPException(status_code=400, detail="Upload at least one image file")
+        if len(files) > max_batch_size:
+            raise HTTPException(status_code=413, detail=f"Too many files (max {max_batch_size})")
+
+        payloads = []
+        for upload in files:
+            if upload.content_type and not upload.content_type.startswith("image/"):
+                raise HTTPException(status_code=400, detail=f"Not an image: {upload.filename}")
+            payloads.append(await upload.read())
+
+        try:
+            results = await run_in_threadpool(
+                state["embedder"].classify,
+                payloads,
+                parsed_labels,
+                template=template,
+                top_k=top_k,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        return {
+            "model": state["embedder"].model_name,
+            "labels": parsed_labels,
+            "results": [
+                [{"label": label, "score": score} for label, score in row] for row in results
+            ],
+        }
 
     return app
 

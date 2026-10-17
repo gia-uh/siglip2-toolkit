@@ -81,6 +81,21 @@ def build_parser() -> argparse.ArgumentParser:
     inspect = sub.add_parser("inspect", help="Validate an index file and print a summary.")
     inspect.add_argument("index_file")
 
+    # --------------------------------------------------------------- classify
+    classify = sub.add_parser(
+        "classify",
+        help="Classify images: zero-shot with --labels, or with a fine-tuned model (--finetuned).",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    classify.add_argument("--image", action="append", required=True, metavar="PATH", help="Image file; repeat for several.")
+    classify.add_argument("--labels", metavar="L1,L2,...", help="Comma-separated candidate labels (zero-shot mode).")
+    classify.add_argument("--template", default="{}", help="Prompt template; '{}' is replaced by each label.")
+    classify.add_argument("--finetuned", action="store_true", help="Use a fine-tuned classification head instead of --labels.")
+    classify.add_argument("--model", default=DEFAULT_MODEL, help="Hugging Face model name.")
+    classify.add_argument("--device", default="auto", help="Device: auto, cpu, cuda, mps...")
+    classify.add_argument("--batch-size", type=int, default=32)
+    classify.add_argument("--top-k", type=int, help="Only report the best k labels per image.")
+
     # ------------------------------------------------------------------ serve
     serve = sub.add_parser("serve", help="Start the optional REST server (requires the [server] extra).")
     serve.add_argument("--host", default="0.0.0.0")
@@ -235,6 +250,40 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_classify(args: argparse.Namespace) -> int:
+    from .utils import setup_logging
+
+    setup_logging("INFO")
+
+    if args.finetuned:
+        from .classification import ImageClassifier
+
+        classifier = ImageClassifier(model=args.model, device=args.device)
+        results = classifier.classify(args.image, top_k=args.top_k, batch_size=args.batch_size)
+    else:
+        if not args.labels:
+            print(
+                "error: pass --labels for zero-shot classification or --finetuned for a trained head",
+                file=sys.stderr,
+            )
+            return 2
+        labels = [label.strip() for label in args.labels.split(",") if label.strip()]
+        if not labels:
+            print("error: --labels must contain at least one non-empty label", file=sys.stderr)
+            return 2
+        from .embedder import Embedder
+
+        embedder = Embedder(model=args.model, device=args.device)
+        results = embedder.classify(
+            args.image, labels, template=args.template, top_k=args.top_k, batch_size=args.batch_size
+        )
+
+    for path, row in zip(args.image, results):
+        scores = ", ".join(f"{label} {probability:.3f}" for label, probability in row)
+        print(f"{path}: {scores}")
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     from .server import run_server
 
@@ -256,6 +305,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return _cmd_index(args)
     if args.command == "inspect":
         return _cmd_inspect(args)
+    if args.command == "classify":
+        return _cmd_classify(args)
     if args.command == "serve":
         return _cmd_serve(args)
 
