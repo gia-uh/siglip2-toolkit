@@ -26,7 +26,6 @@ def _config(tmp_path: Path, input_dir: Path, **overrides) -> ExportConfig:
     config = ExportConfig(
         input_dirs=[str(input_dir)],
         output_file=str(tmp_path / "export.jsonl"),
-        model="fake/deterministic",
         batch_size=4,
     )
     for key, value in overrides.items():

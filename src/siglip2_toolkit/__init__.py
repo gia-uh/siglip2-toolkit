@@ -34,6 +34,7 @@ _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {
     "formats": (".formats", None),
     "retrieval": (".retrieval", None),
     "filters": (".filters", None),
+    "models": (".models", None),
     "utils": (".utils", None),
     "embedder": (".embedder", None),
     "exporter": (".exporter", None),

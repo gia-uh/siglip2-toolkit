@@ -17,8 +17,8 @@ import os
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
-from . import formats, utils
-from .embedder import DEFAULT_MODEL, Embedder
+from . import formats, models, utils
+from .embedder import Embedder
 from .formats import EmbeddingSpace
 
 logger = logging.getLogger(__name__)
@@ -34,9 +34,9 @@ class ExportConfig:
     input_dirs: Sequence[str] = ()
     output_file: str = "embeddings.jsonl"
     output_format: Optional[str] = None  # None -> inferred from output_file
-    model: str = DEFAULT_MODEL
-    device: str = "auto"
-    local_files_only: bool = False
+    model: Optional[str] = None  # toolkit cache identifier or local path; None -> model in use
+    home: Optional[str] = None  # toolkit home, for non-default installations
+    device: Optional[str] = None  # defaults to config.json "device" (else "auto")
     batch_size: int = 32
     incremental: bool = False
     source_file: Optional[str] = None
@@ -87,10 +87,12 @@ class Exporter:
     def embedder(self) -> Embedder:
         """The embedder to use, created from the config if none was provided."""
         if self._embedder is None:
+            resolved = models.resolve_model(self.config.model, home=self.config.home)
+            device = self.config.device or models.default_device(self.config.home)
             self._embedder = Embedder(
-                model=self.config.model,
-                device=self.config.device,
-                local_files_only=self.config.local_files_only,
+                model=resolved.path,
+                model_id=resolved.identifier,
+                device=device,
             )
         return self._embedder
 

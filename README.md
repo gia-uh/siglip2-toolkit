@@ -13,14 +13,61 @@ pip install siglip2-toolkit             # library + CLI
 pip install "siglip2-toolkit[server]"   # + REST server (FastAPI)
 ```
 
+## Model management (the toolkit's own cache)
+
+Models live in the toolkit's **own cache**, independent from HuggingFace's
+cache. The only command that uses the network is `models download`;
+everything else works with what you already have locally.
+
+```bash
+siglip2 models                       # your cache (★ model in use, origin, size)
+siglip2 models --hf                  # SigLIP-2 catalog on HuggingFace: ✓ have it / ☁ downloadable
+siglip2 models current               # the model in use (+ path, origin; --json)
+siglip2 models use <id>              # set the model in use (persistent)
+siglip2 models download <org/name> [--revision REV]   # into the toolkit cache (network)
+siglip2 models import <path> [--name ALIAS]           # copy a local model into the cache
+siglip2 models delete <id>           # delete from the cache (refuses the model in use)
+```
+
+Configuration lives in `<home>/config.json` (default home
+`~/.local/share/siglip2-toolkit/`, created on first use):
+
+```json
+{
+  "cache_dir": "~/.local/share/siglip2-toolkit/models",
+  "current": "google/siglip2-base-patch16-naflex",
+  "device": "auto"
+}
+```
+
+- **`cache_dir`**: where the cache lives; change it to relocate it (e.g. another disk).
+- **`current`**: the model in use.
+- **`device`**: `auto` (CUDA → MPS → CPU), or `cuda`, `cpu`, `mps`, `cuda:1`, …
+  Any command's `--device` overrides it for that run.
+
+There are **no environment variables**; for non-default installations pass
+`--home DIR` (global option, before the command).
+
+`--model` accepts either an identifier from your cache or a path to a local
+model directory. The implicit default is
+`google/siglip2-base-patch16-naflex`: on a machine that does not have it yet,
+the first command tells you the exact `models download` to run. The toolkit
+never picks a model for you.
+
+Incremental exports refuse to run when the existing export was produced by a
+different model: mixing embedding spaces would silently corrupt the vectors.
+
 ## Three ways to use it
 
 **1. As a library (primary interface)**
 
 ```python
-from siglip2_toolkit import Embedder
+from siglip2_toolkit import Embedder, models
 
-embedder = Embedder(model="google/siglip2-base-patch16-naflex", device="auto")
+# Resolve from your cache (download/import first) or pass a local path.
+resolved = models.resolve_model("google/siglip2-base-patch16-naflex")
+embedder = Embedder(model=resolved.path, model_id=resolved.identifier, device="auto")
+
 vectors = embedder.embed_texts(["a wedding at sunset"])
 results = embedder.classify(["photo.jpg"], labels=["beach", "mountain", "wedding"])
 
@@ -32,6 +79,8 @@ matches({"width": 2400}, field("width") >= 2000)  # -> True
 **2. As a CLI**
 
 ```bash
+siglip2 models download google/siglip2-base-patch16-naflex
+siglip2 models use google/siglip2-base-patch16-naflex
 siglip2 export -i /path/to/photos -o embeddings.jsonl --incremental
 siglip2 classify --image photo.jpg --labels "beach,mountain,wedding"
 ```
@@ -45,45 +94,17 @@ siglip2 serve --host 0.0.0.0 --port 8000
 
 Endpoints: `/v1/embed/text`, `/v1/embed/image`, `/v1/classify`, `/v1/health`, `/v1/info`.
 
-## Model selection & caching
-
-Models are always chosen explicitly (`--model` / `Embedder(model=...)`);
-the toolkit never picks one for you. Recommended starting points:
-
-| Model | When |
-|---|---|
-| `google/siglip2-base-patch16-naflex` | default: dynamic resolution, good all-rounder |
-| `google/siglip2-so400m-patch16-naflex` | higher accuracy, GPU recommended |
-| `google/siglip2-base-patch16-224` | fixed resolution, fastest on CPU |
-| `google/siglip2-giant-opt-patch16-384` | best accuracy, needs a strong GPU |
-
-Models are cached by Hugging Face in `~/.cache/huggingface/hub`
-(`HF_HOME` / `HF_HUB_CACHE` override it), persist across reboots and are
-reused offline. To guarantee no network access at all:
-
-```bash
-siglip2 models                                            # what is already cached
-siglip2 models --check google/siglip2-base-patch16-naflex # exit code 0/1
-siglip2 export -i photos -o embeddings.jsonl --offline    # cache-only; fails fast if missing
-```
-
-To pre-seed a machine without internet: download the model on a connected
-machine and copy its `models--google--siglip2-...` folder from that
-machine's `hub` directory into the target's cache.
-
-Incremental exports refuse to run when the existing export was produced by a
-different model: mixing embedding spaces would silently corrupt the vectors.
-
 ## Highlights
 
 - **Library-first design**: the CLI and the REST server are thin adapters over the same public API.
 - **Zero-shot classification**: prompt-based labels using the model's calibrated SigLIP logits, plus fine-tuned classification heads (`ImageClassifier`).
+- **Own model cache**: downloads and imports live in the toolkit cache (independent from HuggingFace's); only `models download` uses the network.
+- **GPU-ready**: `device: "auto"` picks CUDA when available (FP16; FP32 on CPU); override per command with `--device`.
 - **Incremental export**: new, modified and deleted files are detected (modification detection requires metadata).
 - **Resumable runs**: interrupted exports continue where they left off.
 - **Optional metadata**: rich file metadata (EXIF, dimensions, timestamps, thumbnails) — or ids and vectors only, your choice.
 - **Versioned export format** (`jsonl` / `pkl`) with an embedding-space manifest.
 - **Retrieval math**: top-k scoring, RRF fusion, similarity-drop filtering and serializable metadata filters, composable with any store.
-- **Offline-first**: `--offline` runs cache-only (`local_files_only`), `siglip2 models` shows what is available locally; no telemetry, no external services.
 
 > **Status:** early scaffold (October 2026). The public API and the export format are being stabilised before the first release.
 

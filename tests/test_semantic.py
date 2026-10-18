@@ -41,10 +41,10 @@ DISTRACTORS = ["a dog", "a beach", "a bicycle"]
 
 
 @pytest.fixture(scope="module")
-def embedder(test_model):
+def embedder(test_model_path, test_device):
     from siglip2_toolkit.embedder import Embedder
 
-    return Embedder(model=test_model, device="cpu")
+    return Embedder(model=test_model_path, device=test_device)
 
 
 def test_embeddings_are_normalized_and_deterministic(embedder, image_paths):
@@ -56,7 +56,8 @@ def test_embeddings_are_normalized_and_deterministic(embedder, image_paths):
     assert first.shape[1] == embedder.dimensions
     norms = np.linalg.norm(first, axis=1)
     assert np.allclose(norms, 1.0, atol=1e-3)
-    assert np.allclose(first, second, atol=1e-6)
+    # Tolerant enough for FP16 GPUs; exact on CPU.
+    assert np.allclose(first, second, atol=1e-4)
 
 
 def test_text_to_image_retrieval_top1(embedder, image_paths):
@@ -107,7 +108,7 @@ def test_zero_shot_logits_shape(embedder, images_dir):
     assert logits.dtype == np.float32
 
 
-def test_exporter_with_real_model_smoke(tmp_path, image_paths, embedder):
+def test_exporter_with_real_model_smoke(tmp_path, image_paths, embedder, test_device):
     """End-to-end: export the test images with the real model."""
     from siglip2_toolkit.exporter import ExportConfig, Exporter
 
@@ -115,8 +116,7 @@ def test_exporter_with_real_model_smoke(tmp_path, image_paths, embedder):
     config = ExportConfig(
         input_dirs=[str(image_paths[0].parent)],
         output_file=str(output),
-        model=embedder.model_name,
-        device="cpu",
+        device=test_device,
         batch_size=4,
     )
     result = Exporter(config, embedder=embedder).run()

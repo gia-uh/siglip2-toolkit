@@ -11,12 +11,14 @@ IMAGES_DIR = DATA_DIR / "images"
 #: Environment variable that opts into model-dependent (integration) tests.
 INTEGRATION_ENV = "SIGLIP2_INTEGRATION"
 
+DEFAULT_TEST_MODEL = "google/siglip2-base-patch16-naflex"
+
 
 def pytest_collection_modifyitems(config, items):
     if os.environ.get(INTEGRATION_ENV):
         return
     skip = pytest.mark.skip(
-        reason=f"set {INTEGRATION_ENV}=1 to run (needs torch and a cached SigLIP 2 model)"
+        reason=f"set {INTEGRATION_ENV}=1 to run (needs torch and a local SigLIP 2 model)"
     )
     for item in items:
         if "integration" in item.keywords:
@@ -39,6 +41,40 @@ def image_paths(images_dir: Path) -> list[Path]:
 
 
 @pytest.fixture(scope="session")
-def test_model() -> str:
-    """Model used by integration tests (override with SIGLIP2_TEST_MODEL)."""
-    return os.environ.get("SIGLIP2_TEST_MODEL", "google/siglip2-base-patch16-naflex")
+def test_model_path() -> Path:
+    """A local model directory for integration tests.
+
+    Uses ``SIGLIP2_TEST_MODEL_PATH`` when set; otherwise looks for a cached
+    HuggingFace snapshot of ``SIGLIP2_TEST_MODEL`` (default: the toolkit's
+    default model). Integration tests never download anything.
+    """
+    override = os.environ.get("SIGLIP2_TEST_MODEL_PATH")
+    if override:
+        path = Path(override).expanduser()
+        if (path / "config.json").is_file():
+            return path
+        pytest.skip(f"SIGLIP2_TEST_MODEL_PATH is not a model directory: {path}")
+
+    repo_id = os.environ.get("SIGLIP2_TEST_MODEL", DEFAULT_TEST_MODEL)
+    snapshots = (
+        Path.home()
+        / ".cache/huggingface/hub"
+        / f"models--{repo_id.replace('/', '--')}"
+        / "snapshots"
+    )
+    if snapshots.is_dir():
+        for candidate in sorted(snapshots.iterdir()):
+            if (candidate / "config.json").is_file():
+                return candidate
+    pytest.skip(
+        "no local SigLIP 2 model found; set SIGLIP2_TEST_MODEL_PATH to a model directory"
+    )
+
+
+@pytest.fixture(scope="session")
+def test_device() -> str:
+    """Device for integration tests (CPU by default for reproducibility).
+
+    Set ``SIGLIP2_TEST_DEVICE=cuda`` to run them on GPU.
+    """
+    return os.environ.get("SIGLIP2_TEST_DEVICE", "cpu")

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from pathlib import Path
 from typing import Any, Optional, Sequence
 
 import numpy as np
@@ -30,21 +31,18 @@ class ImageClassifier:
 
     def __init__(
         self,
-        model: str,
+        model: str | Path,
         device: str = "auto",
         dtype: Optional[str] = None,
-        revision: Optional[str] = None,
         num_labels: Optional[int] = None,
         trust_remote_code: bool = False,
-        local_files_only: bool = False,
     ) -> None:
-        self.model_name = model
+        self.model_path = str(Path(model).expanduser())
+        self.model_name = self.model_path
         self.requested_device = device
         self.requested_dtype = dtype
-        self.revision = revision
         self.num_labels = num_labels
         self.trust_remote_code = trust_remote_code
-        self.local_files_only = local_files_only
 
         self._model: Any = None
         self._processor: Any = None
@@ -69,9 +67,17 @@ class ImageClassifier:
         return str(self._device) if self._device is not None else None
 
     def load(self) -> "ImageClassifier":
-        """Load the model and its image processor (idempotent)."""
+        """Load the model and its image processor from a local directory (idempotent)."""
         if self._model is not None:
             return self
+
+        path = Path(self.model_path)
+        if not path.is_dir():
+            raise FileNotFoundError(
+                f"ImageClassifier expects a local model directory, got: "
+                f"'{self.model_path}'. Get one with `siglip2 models download` or "
+                "`siglip2 models import`, or pass the path to one."
+            )
 
         import torch
         from transformers import AutoImageProcessor, AutoModelForImageClassification
@@ -87,27 +93,19 @@ class ImageClassifier:
 
         try:
             model = AutoModelForImageClassification.from_pretrained(
-                self.model_name,
-                revision=self.revision,
+                self.model_path,
                 trust_remote_code=self.trust_remote_code,
                 torch_dtype=dtype,
-                local_files_only=self.local_files_only,
                 **extra,
             )
             processor = AutoImageProcessor.from_pretrained(
-                self.model_name,
-                revision=self.revision,
+                self.model_path,
                 trust_remote_code=self.trust_remote_code,
-                local_files_only=self.local_files_only,
             )
         except Exception as exc:
-            if self.local_files_only:
-                raise FileNotFoundError(
-                    f"Classifier '{self.model_name}' is not available in the local Hugging "
-                    "Face cache and local_files_only=True (no network allowed). Seed the "
-                    "cache on a connected machine (see the README) or drop the offline flag."
-                ) from exc
-            raise
+            raise OSError(
+                f"Could not load a classifier from '{self.model_path}': {exc}"
+            ) from exc
         model = model.to(device).eval()
 
         self._torch = torch

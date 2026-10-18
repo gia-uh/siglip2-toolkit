@@ -1,6 +1,5 @@
 """Shared, dependency-light helpers: filesystem scanning, image loading,
-metadata (EXIF) extraction, thumbnails, incremental-run planning and
-Hugging Face cache inspection.
+metadata (EXIF) extraction, thumbnails and incremental-run planning.
 """
 
 from __future__ import annotations
@@ -10,7 +9,6 @@ import json
 import logging
 import os
 import re
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator, Optional
@@ -245,92 +243,3 @@ def filter_files_for_update(
 
     logger.info("Found %d new or modified file(s) to process.", len(files_to_process))
     return files_to_process
-
-
-# --------------------------------------------------------------------- #
-# Hugging Face cache inspection (offline)
-# --------------------------------------------------------------------- #
-
-
-@dataclass(frozen=True)
-class CachedModel:
-    """A model available in the local Hugging Face hub cache."""
-
-    repo_id: str
-    path: str
-    size_bytes: int
-
-
-def default_hub_cache() -> Path:
-    """Location of the Hugging Face hub cache.
-
-    Resolution order: ``HF_HUB_CACHE`` > ``HF_HOME``/hub > the platform
-    default (``~/.cache/huggingface/hub`` on Linux).
-    """
-    if os.environ.get("HF_HUB_CACHE"):
-        return Path(os.environ["HF_HUB_CACHE"])
-    if os.environ.get("HF_HOME"):
-        return Path(os.environ["HF_HOME"]) / "hub"
-    return Path.home() / ".cache" / "huggingface" / "hub"
-
-
-def _model_dir_name(repo_id: str) -> str:
-    return "models--" + repo_id.replace("/", "--")
-
-
-def _repo_id_from_dir_name(name: str) -> str:
-    raw = name[len("models--") :]
-    if "--" in raw:
-        org, rest = raw.split("--", 1)
-        return f"{org}/{rest}"
-    return raw
-
-
-def _model_disk_usage(path: Path) -> int:
-    # Count blobs only when present: snapshots are symlinks to the same files.
-    blobs = path / "blobs"
-    root = blobs if blobs.is_dir() else path
-    total = 0
-    for file in root.rglob("*"):
-        if file.is_file():
-            try:
-                total += file.stat().st_size
-            except OSError:
-                continue
-    return total
-
-
-def list_cached_models(
-    *,
-    include_all: bool = False,
-    cache_dir: str | os.PathLike[str] | None = None,
-) -> list[CachedModel]:
-    """List models available in the local Hugging Face cache (no network).
-
-    By default only SigLIP-family models are listed; ``include_all=True``
-    returns every cached model.
-    """
-    hub = Path(cache_dir) if cache_dir is not None else default_hub_cache()
-    if not hub.is_dir():
-        return []
-    models: list[CachedModel] = []
-    for entry in sorted(hub.glob("models--*")):
-        repo_id = _repo_id_from_dir_name(entry.name)
-        if not include_all and "siglip" not in repo_id.lower():
-            continue
-        models.append(
-            CachedModel(repo_id=repo_id, path=str(entry), size_bytes=_model_disk_usage(entry))
-        )
-    return models
-
-
-def is_model_cached(
-    model_id: str,
-    cache_dir: str | os.PathLike[str] | None = None,
-) -> bool:
-    """Whether ``model_id`` has a usable snapshot in the local cache."""
-    hub = Path(cache_dir) if cache_dir is not None else default_hub_cache()
-    snapshots = hub / _model_dir_name(model_id) / "snapshots"
-    if not snapshots.is_dir():
-        return False
-    return any(child.is_dir() for child in snapshots.iterdir())

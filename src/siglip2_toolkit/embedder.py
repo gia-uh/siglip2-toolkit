@@ -1,8 +1,8 @@
 """SigLIP 2 embedder: L2-normalised text and image embeddings.
 
-The model is loaded lazily on first use (``load()`` is called automatically by
-every ``embed_*`` method), so importing this module and constructing an
-:class:`Embedder` is cheap.
+The embedder loads a model from a **local directory** (a toolkit cache entry
+or a path you provide). It never touches the network: getting models into the
+cache is the job of :mod:`.models` (``siglip2 models download|import``).
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ from typing import Any, Optional, Sequence, Union
 import numpy as np
 
 from . import utils
-from .defaults import DEFAULT_MODEL
 from .formats import EmbeddingSpace
 
 logger = logging.getLogger(__name__)
@@ -34,6 +33,11 @@ def softmax_rows(scores: np.ndarray) -> np.ndarray:
 class Embedder:
     """Generates text and image embeddings with a SigLIP 2 model.
 
+    ``model`` is a local model directory; ``model_id`` is the identifier
+    recorded in logs and in the embedding-space manifest (defaults to the
+    path). Load the model from the toolkit cache with
+    :func:`siglip2_toolkit.models.resolve_model`.
+
     Embeddings are L2-normalised ``float32`` numpy arrays. The instance is
     safe to share across threads (inference is serialised with an internal
     lock); it is not safe to share across processes.
@@ -41,19 +45,17 @@ class Embedder:
 
     def __init__(
         self,
-        model: str = DEFAULT_MODEL,
+        model: str | Path,
         device: str = "auto",
         dtype: Optional[str] = None,
-        revision: Optional[str] = None,
         trust_remote_code: bool = False,
-        local_files_only: bool = False,
+        model_id: Optional[str] = None,
     ) -> None:
-        self.model_name = model
+        self.model_path = str(Path(model).expanduser())
+        self.model_name = model_id or self.model_path
         self.requested_device = device
         self.requested_dtype = dtype
-        self.revision = revision
         self.trust_remote_code = trust_remote_code
-        self.local_files_only = local_files_only
 
         self._model: Any = None
         self._processor: Any = None
@@ -82,39 +84,39 @@ class Embedder:
         return self._dimensions
 
     def load(self) -> "Embedder":
-        """Load the model and processor (idempotent)."""
+        """Load the model and processor from the local directory (idempotent)."""
         if self._model is not None:
             return self
+
+        path = Path(self.model_path)
+        if not path.is_dir():
+            raise FileNotFoundError(
+                f"Embedder expects a local model directory, got: '{self.model_path}'. "
+                "Get a model with `siglip2 models download <org/name>` or "
+                "`siglip2 models import <path>`, or pass the path to one."
+            )
 
         import torch
         from transformers import AutoModel, AutoProcessor
 
         device, dtype = utils.resolve_torch_device(torch, self.requested_device, self.requested_dtype)
-        logger.info("Loading '%s' on %s (%s)...", self.model_name, device, dtype)
+        logger.info("Loading '%s' from %s (%s)...", self.model_name, self.model_path, device)
         # NOTE: torch_dtype= keeps compatibility with transformers 4.51-4.55;
         # newer versions prefer dtype= and only emit a deprecation warning.
         try:
             model = AutoModel.from_pretrained(
-                self.model_name,
-                revision=self.revision,
+                self.model_path,
                 trust_remote_code=self.trust_remote_code,
                 torch_dtype=dtype,
-                local_files_only=self.local_files_only,
             )
             processor = AutoProcessor.from_pretrained(
-                self.model_name,
-                revision=self.revision,
+                self.model_path,
                 trust_remote_code=self.trust_remote_code,
-                local_files_only=self.local_files_only,
             )
         except Exception as exc:
-            if self.local_files_only:
-                raise FileNotFoundError(
-                    f"Model '{self.model_name}' is not available in the local Hugging Face "
-                    "cache and local_files_only=True (no network allowed). Seed the cache on "
-                    "a connected machine (see the README) or drop the offline flag."
-                ) from exc
-            raise
+            raise OSError(
+                f"Could not load a model from '{self.model_path}': {exc}"
+            ) from exc
         model = model.to(device).eval()
 
         self._torch = torch
@@ -129,16 +131,12 @@ class Embedder:
         logger.info("Model ready: %d dimensions ✅", self._dimensions)
         return self
 
-    def _resolve_device(self, torch: Any) -> tuple[Any, Any]:
-        return utils.resolve_torch_device(torch, self.requested_device, self.requested_dtype)
-
     def embedding_space(self) -> EmbeddingSpace:
         """The embedding space manifest for the loaded model."""
         self.load()
         return EmbeddingSpace(
             model=self.model_name,
             dimensions=self._dimensions,
-            revision=self.revision,
         )
 
     # ------------------------------------------------------------------ #
@@ -159,7 +157,10 @@ class Embedder:
 
         chunks = []
         for start in range(0, len(texts), batch_size):
-            batch = [text if isinstance(text, str) else str(text) for text in texts[start : start + batch_size]]
+            batch = [
+                text if isinstance(text, str) else str(text)
+                for text in texts[start : start + batch_size]
+            ]
             chunks.append(self._embed_text_batch(batch, max_length=max_length))
         return np.concatenate(chunks, axis=0)
 
