@@ -46,6 +46,7 @@ def create_app(
     model: str = DEFAULT_MODEL,
     device: str = "auto",
     max_batch_size: int = DEFAULT_MAX_BATCH,
+    local_files_only: bool = False,
 ) -> Any:
     """Build the FastAPI application.
 
@@ -61,7 +62,10 @@ def create_app(
 
     from . import __version__
 
-    state = {"embedder": embedder or Embedder(model=model, device=device)}
+    state = {
+        "embedder": embedder
+        or Embedder(model=model, device=device, local_files_only=local_files_only)
+    }
     app = FastAPI(title="siglip2-toolkit", version=__version__)
 
     class TextRequest(BaseModel):
@@ -176,6 +180,7 @@ def run_server(
     *,
     model: str = DEFAULT_MODEL,
     device: str = "auto",
+    local_files_only: bool = False,
 ) -> None:
     """Create the app and serve it with uvicorn (blocking)."""
     try:
@@ -183,5 +188,5 @@ def run_server(
     except ImportError as exc:
         raise ModuleNotFoundError(_SERVER_EXTRA_HINT) from exc
 
-    app = create_app(model=model, device=device)
+    app = create_app(model=model, device=device, local_files_only=local_files_only)
     uvicorn.run(app, host=host, port=port)

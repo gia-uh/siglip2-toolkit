@@ -5,6 +5,8 @@ import shutil
 import time
 from pathlib import Path
 
+import pytest
+
 from siglip2_toolkit import formats
 from siglip2_toolkit.exporter import ExportConfig, Exporter
 
@@ -193,3 +195,29 @@ def test_progress_callback_reports_batches(tmp_path, image_paths):
 
     assert stages == ["scanning", "embedding", "done"]
     assert events[-1][0] == events[-1][1] == 3
+
+
+def test_incremental_refuses_to_mix_embedding_spaces(tmp_path, image_paths):
+    data_dir = _dataset(tmp_path, image_paths[:2])
+    output = tmp_path / "export.jsonl"
+    config = _config(tmp_path, data_dir)
+    config.incremental = True
+
+    formats.write_export(
+        output,
+        [formats.make_record([0.0] * 8, id="/gone.jpg")],
+        embedding_space=formats.EmbeddingSpace(model="other/model", dimensions=8),
+    )
+    with pytest.raises(ValueError, match="mix embedding spaces"):
+        Exporter(config, embedder=FakeEmbedder()).run()
+
+    # Same space: the incremental run proceeds and drops the stale record.
+    formats.write_export(
+        output,
+        [formats.make_record([0.0] * 8, id="/gone.jpg")],
+        embedding_space=formats.EmbeddingSpace(model="fake/deterministic", dimensions=8),
+    )
+    result = Exporter(config, embedder=FakeEmbedder()).run()
+    assert result.processed == 2
+    assert result.removed == 1
+    assert result.total == 2

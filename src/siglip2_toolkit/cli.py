@@ -1,4 +1,4 @@
-"""Command-line interface: ``siglip2 embed|export|inspect|classify|serve``.
+"""Command-line interface: ``siglip2 embed|export|inspect|classify|models|serve``.
 
 The CLI is a thin adapter over the public library API: it contains no
 embedding or export logic of its own.
@@ -23,6 +23,7 @@ DEFAULT_EXPORT_CONFIG: dict[str, Any] = {
     "model_name": DEFAULT_MODEL,
     "batch_size": 32,
     "device": "auto",
+    "local_files_only": False,
     "log_level": "INFO",
     "incremental": False,
     "source_file": None,
@@ -57,6 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     embed.add_argument("--model", default=DEFAULT_MODEL, help="Hugging Face model name.")
     embed.add_argument("--device", default="auto", help="Device: auto, cpu, cuda, mps...")
     embed.add_argument("--batch-size", type=int, default=32)
+    embed.add_argument("--offline", action="store_true", help="Use only models already in the local cache (no network).")
 
     # ----------------------------------------------------------------- export
     export = sub.add_parser(
@@ -75,6 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--incremental", action="store_true", help="Only process new or modified files, and drop deleted ones.")
     export.add_argument("--source-file", help="Existing export used as the base for an incremental run (defaults to the output file).")
     export.add_argument("--no-metadata", action="store_true", help="Store only ids and vectors (no metadata); incremental modification detection is disabled.")
+    export.add_argument("--offline", action="store_true", help="Use only models already in the local cache (no network).")
     export.add_argument("--create-thumbnails", action="store_true", help="Also generate WEBP thumbnails.")
     export.add_argument("--thumbnail-dir", help="Directory for generated thumbnails.")
     export.add_argument("--thumbnail-size", type=int, nargs=2, metavar=("W", "H"), help="Thumbnail size in pixels.")
@@ -97,6 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     classify.add_argument("--device", default="auto", help="Device: auto, cpu, cuda, mps...")
     classify.add_argument("--batch-size", type=int, default=32)
     classify.add_argument("--top-k", type=int, help="Only report the best k labels per image.")
+    classify.add_argument("--offline", action="store_true", help="Use only models already in the local cache (no network).")
 
     # ------------------------------------------------------------------ serve
     serve = sub.add_parser("serve", help="Start the optional REST server (requires the [server] extra).")
@@ -104,6 +108,15 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--model", default=DEFAULT_MODEL, help="Hugging Face model name.")
     serve.add_argument("--device", default="auto", help="Device: auto, cpu, cuda, mps...")
+    serve.add_argument("--offline", action="store_true", help="Use only models already in the local cache (no network).")
+
+    # ------------------------------------------------------------------ models
+    models = sub.add_parser(
+        "models",
+        help="List or check SigLIP models in the local Hugging Face cache (offline).",
+    )
+    models.add_argument("--all", action="store_true", help="List every cached model, not only SigLIP-family ones.")
+    models.add_argument("--check", metavar="ORG/NAME", help="Check whether a specific model is cached (exit code 0/1).")
 
     return parser
 
@@ -118,12 +131,16 @@ def _cmd_embed(args: argparse.Namespace) -> int:
     from .utils import setup_logging
 
     setup_logging("INFO")
-    embedder = Embedder(model=args.model, device=args.device)
+    embedder = Embedder(model=args.model, device=args.device, local_files_only=args.offline)
 
-    if args.text:
-        matrix = embedder.embed_texts(args.text, batch_size=args.batch_size)
-    else:
-        matrix = embedder.embed_images(args.image, batch_size=args.batch_size)
+    try:
+        if args.text:
+            matrix = embedder.embed_texts(args.text, batch_size=args.batch_size)
+        else:
+            matrix = embedder.embed_images(args.image, batch_size=args.batch_size)
+    except FileNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
     if args.output:
         if args.format == "json":
@@ -163,6 +180,8 @@ def _merge_export_config(args: argparse.Namespace) -> dict[str, Any]:
 
     if getattr(args, "no_metadata", False):
         config["store_metadata"] = False
+    if getattr(args, "offline", False):
+        config["local_files_only"] = True
     return config
 
 
@@ -183,6 +202,7 @@ def _cmd_export(args: argparse.Namespace) -> int:
         output_format=config.get("output_format"),
         model=config.get("model_name", DEFAULT_MODEL),
         device=config.get("device", "auto"),
+        local_files_only=bool(config.get("local_files_only")),
         batch_size=int(config.get("batch_size", 32)),
         incremental=bool(config.get("incremental")),
         source_file=config.get("source_file"),
@@ -204,6 +224,9 @@ def _cmd_export(args: argparse.Namespace) -> int:
 
     try:
         result = Exporter(export_config, on_progress=on_progress).run()
+    except FileNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     finally:
         if bar["pbar"] is not None:
             bar["pbar"].close()
@@ -263,28 +286,42 @@ def _cmd_classify(args: argparse.Namespace) -> int:
 
     setup_logging("INFO")
 
-    if args.finetuned:
-        from .classification import ImageClassifier
+    try:
+        if args.finetuned:
+            from .classification import ImageClassifier
 
-        classifier = ImageClassifier(model=args.model, device=args.device)
-        results = classifier.classify(args.image, top_k=args.top_k, batch_size=args.batch_size)
-    else:
-        if not args.labels:
-            print(
-                "error: pass --labels for zero-shot classification or --finetuned for a trained head",
-                file=sys.stderr,
+            classifier = ImageClassifier(
+                model=args.model, device=args.device, local_files_only=args.offline
             )
-            return 2
-        labels = [label.strip() for label in args.labels.split(",") if label.strip()]
-        if not labels:
-            print("error: --labels must contain at least one non-empty label", file=sys.stderr)
-            return 2
-        from .embedder import Embedder
+            results = classifier.classify(
+                args.image, top_k=args.top_k, batch_size=args.batch_size
+            )
+        else:
+            if not args.labels:
+                print(
+                    "error: pass --labels for zero-shot classification or --finetuned for a trained head",
+                    file=sys.stderr,
+                )
+                return 2
+            labels = [label.strip() for label in args.labels.split(",") if label.strip()]
+            if not labels:
+                print("error: --labels must contain at least one non-empty label", file=sys.stderr)
+                return 2
+            from .embedder import Embedder
 
-        embedder = Embedder(model=args.model, device=args.device)
-        results = embedder.classify(
-            args.image, labels, template=args.template, top_k=args.top_k, batch_size=args.batch_size
-        )
+            embedder = Embedder(
+                model=args.model, device=args.device, local_files_only=args.offline
+            )
+            results = embedder.classify(
+                args.image,
+                labels,
+                template=args.template,
+                top_k=args.top_k,
+                batch_size=args.batch_size,
+            )
+    except FileNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
     for path, row in zip(args.image, results):
         scores = ", ".join(f"{label} {probability:.3f}" for label, probability in row)
@@ -292,11 +329,48 @@ def _cmd_classify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _format_bytes(size: int) -> str:
+    value = float(size)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024:
+            return f"{int(value)} B" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} TB"
+
+
+def _cmd_models(args: argparse.Namespace) -> int:
+    from . import utils
+
+    hub = utils.default_hub_cache()
+    if args.check:
+        if utils.is_model_cached(args.check):
+            print(f"cached: {args.check}")
+            return 0
+        print(f"not cached: {args.check} (would need a download or cache seeding)")
+        return 1
+
+    cached = utils.list_cached_models(include_all=args.all)
+    print(f"Cache: {hub}")
+    if not cached:
+        kind = "models" if args.all else "SigLIP models"
+        print(f"No {kind} found in the cache. Use --all to list every model.")
+        return 0
+    for model in cached:
+        print(f"{model.repo_id:<60} {_format_bytes(model.size_bytes):>10}")
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     from .server import run_server
 
     try:
-        run_server(host=args.host, port=args.port, model=args.model, device=args.device)
+        run_server(
+            host=args.host,
+            port=args.port,
+            model=args.model,
+            device=args.device,
+            local_files_only=args.offline,
+        )
     except ModuleNotFoundError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -315,6 +389,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return _cmd_inspect(args)
     if args.command == "classify":
         return _cmd_classify(args)
+    if args.command == "models":
+        return _cmd_models(args)
     if args.command == "serve":
         return _cmd_serve(args)
 

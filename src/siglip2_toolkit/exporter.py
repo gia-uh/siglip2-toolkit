@@ -36,6 +36,7 @@ class ExportConfig:
     output_format: Optional[str] = None  # None -> inferred from output_file
     model: str = DEFAULT_MODEL
     device: str = "auto"
+    local_files_only: bool = False
     batch_size: int = 32
     incremental: bool = False
     source_file: Optional[str] = None
@@ -86,7 +87,11 @@ class Exporter:
     def embedder(self) -> Embedder:
         """The embedder to use, created from the config if none was provided."""
         if self._embedder is None:
-            self._embedder = Embedder(model=self.config.model, device=self.config.device)
+            self._embedder = Embedder(
+                model=self.config.model,
+                device=self.config.device,
+                local_files_only=self.config.local_files_only,
+            )
         return self._embedder
 
     # ------------------------------------------------------------------ #
@@ -123,6 +128,11 @@ class Exporter:
             source = temp
             existing = formats.load_by_id(temp)
             logger.info("Resuming interrupted run from %s (%d record(s)).", temp, len(existing))
+
+        if source is not None and existing:
+            existing_space = self._header_space(source)
+            if existing_space is not None:
+                self._assert_embedding_space(existing_space, source)
 
         to_process = utils.filter_files_for_update(disk_set, existing)
 
@@ -234,6 +244,16 @@ class Exporter:
         if not path or not os.path.exists(path):
             return None
         return formats.header_embedding_space(formats.read_header(path))
+
+    def _assert_embedding_space(self, existing_space: EmbeddingSpace, source: str) -> None:
+        configured = self.embedder.model_name
+        if existing_space.model != configured:
+            raise ValueError(
+                f"The existing export at '{source}' was produced by "
+                f"'{existing_space.model}' but the configured model is '{configured}'. "
+                "Incremental updates would mix embedding spaces; use the same model or "
+                "write to a different output file."
+            )
 
     def _progress(self, done: int, total: int, path: str) -> None:
         if self._on_progress is not None:

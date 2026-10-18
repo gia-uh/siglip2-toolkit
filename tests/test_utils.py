@@ -81,3 +81,44 @@ def test_extract_metadata_returns_none_for_unreadable_file(tmp_path):
     broken = tmp_path / "broken.jpg"
     broken.write_bytes(b"this is not an image")
     assert utils.extract_metadata(str(broken)) is None
+
+
+def test_list_cached_models_filters_and_counts_sizes(tmp_path):
+    cache = tmp_path / "hub"
+    siglip = cache / "models--google--siglip2-base-patch16-naflex"
+    (siglip / "blobs").mkdir(parents=True)
+    (siglip / "snapshots" / "abc").mkdir(parents=True)
+    (siglip / "blobs" / "model.bin").write_bytes(b"x" * 1000)
+    (siglip / "snapshots" / "abc" / "model.bin").symlink_to(siglip / "blobs" / "model.bin")
+
+    other = cache / "models--Qwen--Qwen3"
+    (other / "blobs").mkdir(parents=True)
+    (other / "blobs" / "w.bin").write_bytes(b"y" * 10)
+
+    only_siglip = utils.list_cached_models(cache_dir=cache)
+    assert [m.repo_id for m in only_siglip] == ["google/siglip2-base-patch16-naflex"]
+    assert only_siglip[0].size_bytes == 1000  # blobs only: snapshots are symlinks
+
+    everything = utils.list_cached_models(include_all=True, cache_dir=cache)
+    assert {m.repo_id for m in everything} == {
+        "google/siglip2-base-patch16-naflex",
+        "Qwen/Qwen3",
+    }
+
+
+def test_is_model_cached(tmp_path):
+    cache = tmp_path / "hub"
+    entry = cache / "models--google--siglip2-base-patch16-naflex"
+    (entry / "snapshots" / "abc").mkdir(parents=True)
+
+    assert utils.is_model_cached("google/siglip2-base-patch16-naflex", cache_dir=cache)
+    assert not utils.is_model_cached("google/siglip2-so400m-patch16-naflex", cache_dir=cache)
+
+
+def test_default_hub_cache_respects_env(monkeypatch, tmp_path):
+    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "direct"))
+    assert utils.default_hub_cache() == tmp_path / "direct"
+
+    monkeypatch.delenv("HF_HUB_CACHE")
+    monkeypatch.setenv("HF_HOME", str(tmp_path / "home"))
+    assert utils.default_hub_cache() == tmp_path / "home" / "hub"

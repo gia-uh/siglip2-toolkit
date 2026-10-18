@@ -46,12 +46,14 @@ class Embedder:
         dtype: Optional[str] = None,
         revision: Optional[str] = None,
         trust_remote_code: bool = False,
+        local_files_only: bool = False,
     ) -> None:
         self.model_name = model
         self.requested_device = device
         self.requested_dtype = dtype
         self.revision = revision
         self.trust_remote_code = trust_remote_code
+        self.local_files_only = local_files_only
 
         self._model: Any = None
         self._processor: Any = None
@@ -91,18 +93,29 @@ class Embedder:
         logger.info("Loading '%s' on %s (%s)...", self.model_name, device, dtype)
         # NOTE: torch_dtype= keeps compatibility with transformers 4.51-4.55;
         # newer versions prefer dtype= and only emit a deprecation warning.
-        model = AutoModel.from_pretrained(
-            self.model_name,
-            revision=self.revision,
-            trust_remote_code=self.trust_remote_code,
-            torch_dtype=dtype,
-        )
+        try:
+            model = AutoModel.from_pretrained(
+                self.model_name,
+                revision=self.revision,
+                trust_remote_code=self.trust_remote_code,
+                torch_dtype=dtype,
+                local_files_only=self.local_files_only,
+            )
+            processor = AutoProcessor.from_pretrained(
+                self.model_name,
+                revision=self.revision,
+                trust_remote_code=self.trust_remote_code,
+                local_files_only=self.local_files_only,
+            )
+        except Exception as exc:
+            if self.local_files_only:
+                raise FileNotFoundError(
+                    f"Model '{self.model_name}' is not available in the local Hugging Face "
+                    "cache and local_files_only=True (no network allowed). Seed the cache on "
+                    "a connected machine (see the README) or drop the offline flag."
+                ) from exc
+            raise
         model = model.to(device).eval()
-        processor = AutoProcessor.from_pretrained(
-            self.model_name,
-            revision=self.revision,
-            trust_remote_code=self.trust_remote_code,
-        )
 
         self._torch = torch
         self._model = model

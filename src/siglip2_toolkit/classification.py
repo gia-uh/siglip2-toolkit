@@ -36,6 +36,7 @@ class ImageClassifier:
         revision: Optional[str] = None,
         num_labels: Optional[int] = None,
         trust_remote_code: bool = False,
+        local_files_only: bool = False,
     ) -> None:
         self.model_name = model
         self.requested_device = device
@@ -43,6 +44,7 @@ class ImageClassifier:
         self.revision = revision
         self.num_labels = num_labels
         self.trust_remote_code = trust_remote_code
+        self.local_files_only = local_files_only
 
         self._model: Any = None
         self._processor: Any = None
@@ -83,19 +85,30 @@ class ImageClassifier:
         if self.num_labels is not None:
             extra["num_labels"] = self.num_labels
 
-        model = AutoModelForImageClassification.from_pretrained(
-            self.model_name,
-            revision=self.revision,
-            trust_remote_code=self.trust_remote_code,
-            torch_dtype=dtype,
-            **extra,
-        )
+        try:
+            model = AutoModelForImageClassification.from_pretrained(
+                self.model_name,
+                revision=self.revision,
+                trust_remote_code=self.trust_remote_code,
+                torch_dtype=dtype,
+                local_files_only=self.local_files_only,
+                **extra,
+            )
+            processor = AutoImageProcessor.from_pretrained(
+                self.model_name,
+                revision=self.revision,
+                trust_remote_code=self.trust_remote_code,
+                local_files_only=self.local_files_only,
+            )
+        except Exception as exc:
+            if self.local_files_only:
+                raise FileNotFoundError(
+                    f"Classifier '{self.model_name}' is not available in the local Hugging "
+                    "Face cache and local_files_only=True (no network allowed). Seed the "
+                    "cache on a connected machine (see the README) or drop the offline flag."
+                ) from exc
+            raise
         model = model.to(device).eval()
-        processor = AutoImageProcessor.from_pretrained(
-            self.model_name,
-            revision=self.revision,
-            trust_remote_code=self.trust_remote_code,
-        )
 
         self._torch = torch
         self._model = model
