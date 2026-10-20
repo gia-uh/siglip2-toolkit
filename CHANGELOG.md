@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.3 — 2026-10-20
+
+- Cap `transformers<5`: 5.x changed `SiglipModel.get_image_features` /
+  `get_text_features` to return the tower outputs instead of the projected
+  embeddings (and removed the projection heads), which broke indexing and
+  search in fresh installs. A fresh install of 0.0.2 resolved 5.20.2.
+
 ## 0.0.2 — 2026-10-20
 
 - The project is now managed with **uv**: committed `uv.lock`, pinned

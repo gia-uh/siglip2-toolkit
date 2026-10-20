@@ -106,7 +106,7 @@ Endpoints: `/v1/embed/text`, `/v1/embed/image`, `/v1/classify`, `/v1/health`, `/
 - **Versioned export format** (`jsonl` / `pkl`) with an embedding-space manifest.
 - **Retrieval math**: top-k scoring, RRF fusion, similarity-drop filtering and serializable metadata filters, composable with any store.
 
-> **Status:** first preview (0.0.2, October 2026). The public API and the
+> **Status:** first preview (0.0.3, October 2026). The public API and the
 export format may still change before 1.0; pin the version you depend on.
 
 ## Development

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "siglip2-toolkit"
-version = "0.0.2"
+version = "0.0.3"
 description = "Local-first toolkit around Google's SigLIP 2 models: text/image embeddings, zero-shot and fine-tuned classification, incremental corpus export and retrieval math. Library-first, with CLI and REST interfaces."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -36,7 +36,7 @@ classifiers = [
 dependencies = [
     "numpy>=1.26",
     "torch>=2.2",
-    "transformers>=4.51",
+    "transformers>=4.51,<5",
     "huggingface_hub>=0.23",
     "Pillow>=10.0",
     "pillow-heif>=0.16",
