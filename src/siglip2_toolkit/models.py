@@ -55,24 +55,26 @@ class CatalogModel:
 #: Curated, informational list of the SigLIP 2 family published on
 #: HuggingFace. The toolkit never picks a model for you; this only shows what
 #: exists, so you can see what you already have and what you could download.
+#: Sizes are the actual HuggingFace checkpoint downloads (fp32 safetensors),
+#: not just the vision encoder.
 CATALOG: tuple[CatalogModel, ...] = (
-    CatalogModel("google/siglip2-base-patch32-256", "86M", 32, "256", "≈0.4 GB"),
-    CatalogModel("google/siglip2-base-patch16-224", "86M", 16, "224", "≈0.4 GB"),
-    CatalogModel("google/siglip2-base-patch16-256", "86M", 16, "256", "≈0.4 GB"),
-    CatalogModel("google/siglip2-base-patch16-384", "86M", 16, "384", "≈0.4 GB"),
-    CatalogModel("google/siglip2-base-patch16-512", "86M", 16, "512", "≈0.4 GB"),
-    CatalogModel("google/siglip2-base-patch16-naflex", "86M", 16, "naflex", "≈0.4 GB"),
-    CatalogModel("google/siglip2-large-patch16-256", "303M", 16, "256", "≈1.2 GB"),
-    CatalogModel("google/siglip2-large-patch16-384", "303M", 16, "384", "≈1.2 GB"),
-    CatalogModel("google/siglip2-large-patch16-512", "303M", 16, "512", "≈1.2 GB"),
-    CatalogModel("google/siglip2-so400m-patch14-224", "400M", 14, "224", "≈1.6 GB"),
-    CatalogModel("google/siglip2-so400m-patch14-384", "400M", 14, "384", "≈1.6 GB"),
-    CatalogModel("google/siglip2-so400m-patch16-256", "400M", 16, "256", "≈1.6 GB"),
-    CatalogModel("google/siglip2-so400m-patch16-384", "400M", 16, "384", "≈1.6 GB"),
-    CatalogModel("google/siglip2-so400m-patch16-512", "400M", 16, "512", "≈1.6 GB"),
-    CatalogModel("google/siglip2-so400m-patch16-naflex", "400M", 16, "naflex", "≈1.6 GB"),
-    CatalogModel("google/siglip2-giant-opt-patch16-256", "1B", 16, "256", "≈4 GB"),
-    CatalogModel("google/siglip2-giant-opt-patch16-384", "1B", 16, "384", "≈4 GB"),
+    CatalogModel("google/siglip2-base-patch32-256", "86M", 32, "256", "≈1.5 GB"),
+    CatalogModel("google/siglip2-base-patch16-224", "86M", 16, "224", "≈1.5 GB"),
+    CatalogModel("google/siglip2-base-patch16-256", "86M", 16, "256", "≈1.5 GB"),
+    CatalogModel("google/siglip2-base-patch16-384", "86M", 16, "384", "≈1.5 GB"),
+    CatalogModel("google/siglip2-base-patch16-512", "86M", 16, "512", "≈1.5 GB"),
+    CatalogModel("google/siglip2-base-patch16-naflex", "86M", 16, "naflex", "≈1.5 GB"),
+    CatalogModel("google/siglip2-large-patch16-256", "303M", 16, "256", "≈3.5 GB"),
+    CatalogModel("google/siglip2-large-patch16-384", "303M", 16, "384", "≈3.5 GB"),
+    CatalogModel("google/siglip2-large-patch16-512", "303M", 16, "512", "≈3.5 GB"),
+    CatalogModel("google/siglip2-so400m-patch14-224", "400M", 14, "224", "≈4.6 GB"),
+    CatalogModel("google/siglip2-so400m-patch14-384", "400M", 14, "384", "≈4.6 GB"),
+    CatalogModel("google/siglip2-so400m-patch16-256", "400M", 16, "256", "≈4.6 GB"),
+    CatalogModel("google/siglip2-so400m-patch16-384", "400M", 16, "384", "≈4.6 GB"),
+    CatalogModel("google/siglip2-so400m-patch16-512", "400M", 16, "512", "≈4.6 GB"),
+    CatalogModel("google/siglip2-so400m-patch16-naflex", "400M", 16, "naflex", "≈4.6 GB"),
+    CatalogModel("google/siglip2-giant-opt-patch16-256", "1B", 16, "256", "≈7.5 GB"),
+    CatalogModel("google/siglip2-giant-opt-patch16-384", "1B", 16, "384", "≈7.5 GB"),
 )
 
 

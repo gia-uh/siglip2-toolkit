@@ -106,8 +106,27 @@ Endpoints: `/v1/embed/text`, `/v1/embed/image`, `/v1/classify`, `/v1/health`, `/
 - **Versioned export format** (`jsonl` / `pkl`) with an embedding-space manifest.
 - **Retrieval math**: top-k scoring, RRF fusion, similarity-drop filtering and serializable metadata filters, composable with any store.
 
-> **Status:** first preview (0.0.1, October 2026). The public API and the
+> **Status:** first preview (0.0.2, October 2026). The public API and the
 export format may still change before 1.0; pin the version you depend on.
+
+## Development
+
+Managed with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv sync --all-extras     # dev + server extras
+uv run pytest
+uv run siglip2 --help
+uv lock                   # refresh uv.lock
+uv build                  # wheel + sdist
+```
+
+CPU-only development (avoids the CUDA torch wheels):
+
+```bash
+uv venv --python 3.12
+uv pip install --torch-backend cpu -e ".[dev,server]"
+```
 
 ## License
 
