@@ -1,6 +1,6 @@
 site_name: siglip2-toolkit
 site_description: Local-first SigLIP 2 embeddings, classification, export and retrieval.
-site_url: https://gia-uh.github.io/siglip2-toolkit/
+site_url: https://uhgia.org/siglip2-toolkit/
 repo_url: https://github.com/gia-uh/siglip2-toolkit
 repo_name: gia-uh/siglip2-toolkit
 edit_uri: edit/main/docs/

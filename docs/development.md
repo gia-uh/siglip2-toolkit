@@ -65,9 +65,10 @@ pages use `::: siglip2_toolkit.module.Class` and are generated from the
 docstrings with **static** analysis (`allow_inspection: false`), so the docs
 build does not need the runtime dependencies.
 
-CI builds the docs with `mkdocs build --strict`. The deploy job is gated by
-the repository variable `DEPLOY_DOCS`: enable GitHub Pages (source: GitHub
-Actions), set `DEPLOY_DOCS=true`, and the `docs` workflow publishes on main.
+CI builds the docs with `mkdocs build --strict`. GitHub Pages is enabled
+(source: GitHub Actions) with the custom domain `uhgia.org`; the deploy job
+is gated by `DEPLOY_DOCS=true` and publishes on every push to `main` at
+<https://uhgia.org/siglip2-toolkit/>.
 
 ## Build and publish
 

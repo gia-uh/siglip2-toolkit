@@ -70,7 +70,7 @@ siglip2 = "siglip2_toolkit.cli:main"
 Homepage = "https://github.com/gia-uh/siglip2-toolkit"
 Repository = "https://github.com/gia-uh/siglip2-toolkit"
 Issues = "https://github.com/gia-uh/siglip2-toolkit/issues"
-Documentation = "https://github.com/gia-uh/siglip2-toolkit/tree/main/docs"
+Documentation = "https://uhgia.org/siglip2-toolkit/"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/siglip2_toolkit"]

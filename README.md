@@ -8,12 +8,12 @@ Co-developed by [GIA-UH](https://github.com/gia-uh) and [Syalia S.R.L.](https://
 
 [![PyPI](https://img.shields.io/pypi/v/siglip2-toolkit.svg)](https://pypi.org/project/siglip2-toolkit/)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://pypi.org/project/siglip2-toolkit/)
-[![Docs](https://img.shields.io/badge/docs-source-blue.svg)](https://github.com/gia-uh/siglip2-toolkit/tree/main/docs)
+[![Docs](https://img.shields.io/badge/docs-online-blue.svg)](https://uhgia.org/siglip2-toolkit/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Documentation source:** <https://github.com/gia-uh/siglip2-toolkit/tree/main/docs>
-(build the static site with the commands in [Development](#development); the
-included GitHub Actions workflow can publish it to GitHub Pages).
+**Documentation:** <https://uhgia.org/siglip2-toolkit/>
+(source in [`docs/`](https://github.com/gia-uh/siglip2-toolkit/tree/main/docs);
+build it locally with the commands in [Development](#development)).
 
 ## Installation
 
@@ -68,7 +68,7 @@ different model: mixing embedding spaces would silently corrupt the vectors.
 
 ## Examples and documentation
 
-- [Documentation](https://github.com/gia-uh/siglip2-toolkit/tree/main/docs) — installation,
+- [Documentation](https://uhgia.org/siglip2-toolkit/) — installation,
   quickstart, models, library guide, CLI, REST, export format, recipes,
   troubleshooting and the API reference.
 - [`examples/`](https://github.com/gia-uh/siglip2-toolkit/tree/main/examples) — runnable scripts for embeddings, export/inspect,
