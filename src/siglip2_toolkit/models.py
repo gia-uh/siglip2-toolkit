@@ -2,7 +2,7 @@
 
 Everything the toolkit uses lives here, or is a local path you provide. The
 HuggingFace cache is unrelated: this toolkit never reads it. The only network
-access in the whole toolkit is :func:`download_model` (the
+access in the whole toolkit is `download_model` (the
 ``siglip2 models download`` command).
 
 Layout::

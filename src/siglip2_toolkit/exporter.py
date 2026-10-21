@@ -1,8 +1,8 @@
 """Incremental corpus export.
 
 Scans image directories, embeds images with a SigLIP 2
-:class:`~.embedder.Embedder` and writes a portable embeddings export (see
-:mod:`.formats`). Supports incremental runs (new/modified/deleted files) and
+`Embedder` and writes a portable embeddings export (see
+`formats`). Supports incremental runs (new/modified/deleted files) and
 automatic resume from an interrupted run via a ``.tmp`` file.
 
 The export is an interchange artifact: it is not a database, and this toolkit

@@ -266,7 +266,7 @@ def to_dict(node: Any) -> dict[str, Any]:
 
 
 def from_dict(data: Mapping[str, Any]) -> Any:
-    """Rebuild a filter expression from :func:`to_dict` output."""
+    """Rebuild a filter expression from `to_dict` output."""
     op = data.get("op")
     if op in ("and", "or"):
         children = [from_dict(child) for child in data.get("filters", [])]

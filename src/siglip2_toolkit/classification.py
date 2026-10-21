@@ -1,7 +1,7 @@
 """Fine-tuned image classification with SigLIP-family checkpoints.
 
 Zero-shot classification (prompt-based) lives on the embedder:
-:meth:`siglip2_toolkit.embedder.Embedder.classify`. This module covers
+`siglip2_toolkit.embedder.Embedder.classify`. This module covers
 checkpoints that ship a trained classification head, consumed through
 ``AutoModelForImageClassification`` (e.g. ``SiglipForImageClassification``).
 """

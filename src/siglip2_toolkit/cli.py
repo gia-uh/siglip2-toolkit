@@ -2,7 +2,7 @@
 
 The CLI is a thin adapter over the public library API: it contains no
 embedding or export logic of its own. Model references are resolved through
-the toolkit's own model cache (:mod:`siglip2_toolkit.models`).
+the toolkit's own model cache (`siglip2_toolkit.models`).
 """
 
 from __future__ import annotations

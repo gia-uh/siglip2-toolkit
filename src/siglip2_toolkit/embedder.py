@@ -2,7 +2,7 @@
 
 The embedder loads a model from a **local directory** (a toolkit cache entry
 or a path you provide). It never touches the network: getting models into the
-cache is the job of :mod:`.models` (``siglip2 models download|import``).
+cache is the job of `models` (``siglip2 models download|import``).
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ class Embedder:
     ``model`` is a local model directory; ``model_id`` is the identifier
     recorded in logs and in the embedding-space manifest (defaults to the
     path). Load the model from the toolkit cache with
-    :func:`siglip2_toolkit.models.resolve_model`.
+    `siglip2_toolkit.models.resolve_model`.
 
     Embeddings are L2-normalised ``float32`` numpy arrays. The instance is
     safe to share across threads (inference is serialised with an internal
@@ -289,7 +289,7 @@ class Embedder:
 
         Returns, for each image, ``(label, probability)`` pairs sorted by
         decreasing softmax probability over the candidate labels (mutually
-        exclusive assumption). Use :meth:`zero_shot_logits` when you need the
+        exclusive assumption). Use `zero_shot_logits` when you need the
         raw scores for custom decision rules.
         """
         labels = [str(label) for label in labels]

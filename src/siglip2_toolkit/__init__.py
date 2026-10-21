@@ -1,6 +1,6 @@
 """siglip2-toolkit — local-first toolkit around Google's SigLIP 2 models.
 
-The package is deliberately lazy: importing :mod:`siglip2_toolkit` does not
+The package is deliberately lazy: importing `siglip2_toolkit` does not
 import torch, transformers or FastAPI. Heavy modules are loaded on first
 attribute access, so tooling and metadata inspection stay fast::
 

@@ -2,7 +2,7 @@
 
 These helpers operate on numpy arrays and on ``(payload, score)`` result
 lists, so they can be reused with any vector store or directly over vectors
-loaded from an embeddings export (see :mod:`.formats`).
+loaded from an embeddings export (see `formats`).
 """
 
 from __future__ import annotations

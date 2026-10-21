@@ -1,6 +1,6 @@
 """Optional REST server for embeddings (requires the ``server`` extra).
 
-The server is a thin adapter over :class:`~.embedder.Embedder`, so third
+The server is a thin adapter over `Embedder`, so third
 parties using the library programmatically see exactly the same behaviour as
 REST clients. ``create_app()`` also allows mounting the API inside an
 existing FastAPI application.
