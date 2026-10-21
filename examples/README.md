@@ -32,6 +32,8 @@ uv run siglip2 models use google/siglip2-base-patch16-naflex
 | `04_classify.py` | Zero-shot classification with candidate labels. |
 | `05_models.py` | List the cache and the informational model catalog. |
 | `06_rest_client.py` | Call a running `siglip2 serve` instance. |
+| `07_text_image_similarity.py` | Compare text labels with images. |
+| `08_classify_threshold.py` | Zero-shot classification with abstention. |
 
 Run them from the repository root:
 
