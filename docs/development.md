@@ -22,6 +22,12 @@ uv pip install --torch-backend cpu -e ".[dev,server]"
 
 ## Tests
 
+Every fenced code block in the README/docs is checked by
+`tests/test_docs_code.py`: Python blocks compile (top-level await allowed),
+JSON/YAML blocks parse, and shell blocks pass `bash -n`. Runnable examples are
+checked with `--help` by `tests/test_examples.py`; the tutorial flow has an
+opt-in integration test against a real model.
+
 ```bash
 uv run pytest -q                 # unit tests; no model needed
 uv run pytest -q --cov=siglip2_toolkit
@@ -93,7 +99,7 @@ Before a release:
 
 ## Project layout
 
-```
+```text
 src/siglip2_toolkit/
 ├── __init__.py        # lazy public API
 ├── embedder.py        # Embedder (text/image embeddings, zero-shot)

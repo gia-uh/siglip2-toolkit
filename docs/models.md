@@ -8,7 +8,7 @@ with what is already local.
 
 By default:
 
-```
+```text
 ~/.local/share/siglip2-toolkit/
 ├── config.json
 └── models/

@@ -29,13 +29,13 @@ cache. The only command that uses the network is `models download`;
 everything else works with what you already have locally.
 
 ```bash
-siglip2 models                       # your cache (★ model in use, origin, size)
-siglip2 models --hf                  # SigLIP-2 catalog on HuggingFace: ✓ have it / ☁ downloadable
-siglip2 models current               # the model in use (+ path, origin; --json)
-siglip2 models use <id>              # set the model in use (persistent)
-siglip2 models download <org/name> [--revision REV]   # into the toolkit cache (network)
-siglip2 models import <path> [--name ALIAS]           # copy a local model into the cache
-siglip2 models delete <id>           # delete from the cache (refuses the model in use)
+siglip2 models
+siglip2 models --hf
+siglip2 models current --json
+siglip2 models use google/siglip2-base-patch16-naflex
+siglip2 models download google/siglip2-base-patch16-naflex
+siglip2 models import /mnt/models/siglip2-base --name google/siglip2-base-patch16-naflex
+siglip2 models delete google/siglip2-large-patch16-256
 ```
 
 Configuration lives in `<home>/config.json` (default home

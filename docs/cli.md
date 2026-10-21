@@ -122,8 +122,8 @@ siglip2 models                  # list cache
 siglip2 models --hf             # catalog on HuggingFace + what you have
 siglip2 models current --json
 siglip2 models use google/siglip2-base-patch16-naflex
-siglip2 models download google/siglip2-base-patch16-naflex --revision <rev>
-siglip2 models import /path/to/model --name google/siglip2-base-patch16-naflex
+siglip2 models download google/siglip2-base-patch16-naflex --revision b53b807d
+siglip2 models import /mnt/models/siglip2-base --name google/siglip2-base-patch16-naflex
 siglip2 models delete google/siglip2-large-patch16-256
 ```
 
