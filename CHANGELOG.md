@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.5 — 2026-10-21
+
+- Publish the documentation at <https://uhgia.org/siglip2-toolkit/> (GitHub
+  Pages, custom domain) and point the PyPI Documentation URL there.
+- Replace Sphinx roles in docstrings with Markdown code spans for a clean
+  generated API reference.
+
 ## 0.0.4 — 2026-10-20
 
 - Add the MkDocs Material documentation site (`docs/`), including
