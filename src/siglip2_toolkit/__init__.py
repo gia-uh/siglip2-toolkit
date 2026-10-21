@@ -17,7 +17,7 @@ try:
 
     __version__ = _dist_version("siglip2-toolkit")
 except Exception:  # pragma: no cover - source checkout without installed metadata
-    __version__ = "0.0.1"
+    __version__ = "0.0.4"
 
 #: Lazy attributes: name -> (relative module, attribute or None for the module itself)
 _LAZY_ATTRS: dict[str, tuple[str, str | None]] = {

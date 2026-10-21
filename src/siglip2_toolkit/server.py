@@ -71,7 +71,15 @@ def create_app(
             device=device or models.default_device(home),
         )
     state = {"embedder": embedder}
-    app = FastAPI(title="siglip2-toolkit", version=__version__)
+    app = FastAPI(
+        title="siglip2-toolkit",
+        version=__version__,
+        description=(
+            "Local-first SigLIP 2 embeddings and classification. "
+            "The model is loaded lazily on the first embedding request. "
+            "Interactive docs are available at /docs."
+        ),
+    )
 
     class TextRequest(BaseModel):
         texts: list[str]
@@ -86,6 +94,7 @@ def create_app(
 
     @app.get("/v1/health")
     async def health() -> dict[str, Any]:
+        """Liveness and model state; never loads the model."""
         active = state["embedder"]
         return {
             "status": "ok",
@@ -96,6 +105,7 @@ def create_app(
 
     @app.get("/v1/info")
     async def info() -> dict[str, Any]:
+        """Model and embedding-space metadata; dimensions may be null until the first load."""
         active = state["embedder"]
         space = active.embedding_space() if active.is_loaded else None
         return {
@@ -106,6 +116,7 @@ def create_app(
 
     @app.post("/v1/embed/text")
     async def embed_text(request: TextRequest) -> dict[str, Any]:
+        """Embed one or more texts and return L2-normalised float32 vectors."""
         texts = [text.strip() for text in request.texts if text and text.strip()]
         if not texts:
             raise HTTPException(status_code=400, detail="Provide at least one non-empty text")
@@ -116,6 +127,7 @@ def create_app(
 
     @app.post("/v1/embed/image")
     async def embed_image(files: list[UploadFile] = File(...)) -> dict[str, Any]:
+        """Embed one or more uploaded images (multipart field ``files``)."""
         if not files:
             raise HTTPException(status_code=400, detail="Upload at least one image file")
         if len(files) > max_batch_size:
@@ -140,6 +152,7 @@ def create_app(
         template: str = Form("{}"),
         top_k: Optional[int] = Form(None),
     ) -> dict[str, Any]:
+        """Zero-shot classification with candidate labels (JSON array or comma-separated)."""
         parsed_labels = _parse_labels(labels)
         if not parsed_labels:
             raise HTTPException(

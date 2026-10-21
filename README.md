@@ -6,6 +6,15 @@ It is **not a vector database**: it produces embeddings and portable exports, an
 
 Co-developed by [GIA-UH](https://github.com/gia-uh) and [Syalia S.R.L.](https://github.com/syalia-srl).
 
+[![PyPI](https://img.shields.io/pypi/v/siglip2-toolkit.svg)](https://pypi.org/project/siglip2-toolkit/)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://pypi.org/project/siglip2-toolkit/)
+[![Docs](https://img.shields.io/badge/docs-source-blue.svg)](https://github.com/gia-uh/siglip2-toolkit/tree/main/docs)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+**Documentation source:** <https://github.com/gia-uh/siglip2-toolkit/tree/main/docs>
+(build the static site with the commands in [Development](#development); the
+included GitHub Actions workflow can publish it to GitHub Pages).
+
 ## Installation
 
 ```bash
@@ -57,6 +66,14 @@ never picks a model for you.
 Incremental exports refuse to run when the existing export was produced by a
 different model: mixing embedding spaces would silently corrupt the vectors.
 
+## Examples and documentation
+
+- [Documentation](https://github.com/gia-uh/siglip2-toolkit/tree/main/docs) — installation,
+  quickstart, models, library guide, CLI, REST, export format, recipes,
+  troubleshooting and the API reference.
+- [`examples/`](https://github.com/gia-uh/siglip2-toolkit/tree/main/examples) — runnable scripts for embeddings, export/inspect,
+  search, classification and the REST client.
+
 ## Three ways to use it
 
 **1. As a library (primary interface)**
@@ -106,7 +123,7 @@ Endpoints: `/v1/embed/text`, `/v1/embed/image`, `/v1/classify`, `/v1/health`, `/
 - **Versioned export format** (`jsonl` / `pkl`) with an embedding-space manifest.
 - **Retrieval math**: top-k scoring, RRF fusion, similarity-drop filtering and serializable metadata filters, composable with any store.
 
-> **Status:** first preview (0.0.3, October 2026). The public API and the
+> **Status:** first preview (0.0.4, October 2026). The public API and the
 export format may still change before 1.0; pin the version you depend on.
 
 ## Development

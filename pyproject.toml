@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "siglip2-toolkit"
-version = "0.0.3"
+version = "0.0.4"
 description = "Local-first toolkit around Google's SigLIP 2 models: text/image embeddings, zero-shot and fine-tuned classification, incremental corpus export and retrieval math. Library-first, with CLI and REST interfaces."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -44,6 +44,13 @@ dependencies = [
     "tqdm>=4.60",
 ]
 
+[dependency-groups]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+    "ruff>=0.6",
+]
+
 [project.optional-dependencies]
 server = [
     "fastapi>=0.115",
@@ -63,6 +70,7 @@ siglip2 = "siglip2_toolkit.cli:main"
 Homepage = "https://github.com/gia-uh/siglip2-toolkit"
 Repository = "https://github.com/gia-uh/siglip2-toolkit"
 Issues = "https://github.com/gia-uh/siglip2-toolkit/issues"
+Documentation = "https://github.com/gia-uh/siglip2-toolkit/tree/main/docs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/siglip2_toolkit"]
