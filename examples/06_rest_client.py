@@ -42,7 +42,10 @@ def main() -> int:
         return 2
     except urllib.error.URLError as exc:
         print(f"error: cannot reach {args.url}: {exc.reason}", file=sys.stderr)
-        print("Start the server with `siglip2 serve --host 127.0.0.1 --port 8000`.", file=sys.stderr)
+        print(
+            "Start the server with `siglip2 serve --host 127.0.0.1 --port 8000`.",
+            file=sys.stderr,
+        )
         return 2
 
     print(f"model: {data['model']}")

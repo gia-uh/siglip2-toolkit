@@ -53,7 +53,10 @@ def main() -> int:
           f"removed={result.removed} total={result.total}")
     if result.embedding_space:
         space = result.embedding_space
-        print(f"embedding space: {space.model} ({space.dimensions} dimensions, {space.normalization})")
+        print(
+            f"embedding space: {space.model} "
+            f"({space.dimensions} dimensions, {space.normalization})"
+        )
 
     header = formats.read_header(args.output)
     records = formats.load_records(args.output)

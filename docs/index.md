@@ -86,6 +86,7 @@ print(vectors.shape)  # (2, dimensions)
 | If you want to… | Read |
 |---|---|
 | Go from zero to search | [Tutorial](tutorial.md) |
+| Run the examples | [Examples](examples.md) |
 | Install it, including offline | [Installation](installation.md) |
 | Embed, export, inspect and classify in minutes | [Quickstart](quickstart.md) |
 | Manage models and the cache | [Models](models.md) |
@@ -94,7 +95,7 @@ print(vectors.shape)  # (2, dimensions)
 | Call the REST service | [REST API](rest.md) |
 | Understand the export file | [Export format](formats.md) |
 | Copy a recipe (search, RRF, filters) | [Recipes](recipes.md) |
-| Fix a problem | [Troubleshooting](troubleshooting.md) |
+| Fix a problem | [Troubleshooting](troubleshooting.md) · [FAQ](faq.md) · [Glossary](glossary.md) |
 | Contribute or build docs | [Development](development.md) |
 
 ## Status

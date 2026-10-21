@@ -71,6 +71,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Tutorial: tutorial.md
+  - Examples: examples.md
   - Installation: installation.md
   - Quickstart: quickstart.md
   - Models: models.md
@@ -90,5 +91,7 @@ nav:
       - Classification: api/classification.md
       - Utilities: api/utils.md
   - Troubleshooting: troubleshooting.md
+  - FAQ: faq.md
+  - Glossary: glossary.md
   - Development: development.md
   - Changelog: changelog.md

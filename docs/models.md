@@ -77,6 +77,37 @@ Inside a family, patch size and resolution change speed and quality, not the
 weight class. For a first install, `google/siglip2-base-patch16-naflex` is the
 reference base model.
 
+## Which model?
+
+There is no universally best checkpoint. Choose by **task, hardware and
+measured quality on your data**:
+
+| Family | Approx. size | When to consider it |
+|---|---:|---|
+| `google/siglip2-base-*` | ≈1.5 GB | First install, CPU, most collections; the reference quality |
+| `google/siglip2-large-*` | ≈3.5 GB | You measured a quality gain over base and have the RAM/time |
+| `google/siglip2-so400m-*` | ≈4.6 GB | Quality-first workloads with more CPU/GPU budget |
+| `google/siglip2-giant-opt-*` | ≈7.5 GB | Maximum capacity; not a default and expensive on CPU |
+
+Within the base family:
+
+- `patch16-naflex` (toolkit reference) supports flexible resolution; start here.
+- `patch16-224/256/384/512` use fixed resolutions; higher resolution preserves
+  detail but costs compute.
+- `patch32-256` uses larger patches; it can be faster, but measure retrieval
+  quality on your images.
+
+Practical selection:
+
+1. Start with base `naflex`; build a small labelled query set.
+2. Measure top-k accuracy/recall and latency on **your** hardware.
+3. Try one larger family only if the gain justifies its size and time.
+4. Keep one model per library/export; never mix embedding spaces.
+
+Model licenses are separate from the toolkit's MIT license; check each model
+card on HuggingFace before redistribution. See
+[Export format](formats.md#embedding-space) for compatibility.
+
 ## Choosing a device
 
 ```bash
