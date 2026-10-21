@@ -7,7 +7,9 @@ is in the toolkit cache (`siglip2 models use …`) and the package is installed.
 
 ```python
 from siglip2_toolkit import Embedder, formats, models
-from siglip2_toolkit.retrieval import apply_similarity_drop, rank_by_similarity, results_matrix
+from siglip2_toolkit.retrieval import (
+    apply_similarity_drop, fuse_rrf, rank_by_similarity, results_matrix,
+)
 
 records = formats.load_records("embeddings.jsonl")
 matrix = results_matrix(records)
